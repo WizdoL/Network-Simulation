@@ -1,0 +1,1449 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Simulation - TCP/UDP & Application Layer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #000000;
+            --bg-secondary: #0a0a0a;
+            --bg-card: #111111;
+            --bg-card-hover: #1a1a1a;
+            --border-color: #222222;
+            --border-glow: #333333;
+            --text-primary: #ffffff;
+            --text-secondary: #888888;
+            --text-muted: #555555;
+            --accent: #ffffff;
+            --accent-dim: #333333;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--bg-primary);
+            min-height: 100vh;
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        /* Header */
+        header {
+            text-align: center;
+            padding: 60px 0;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 40px;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            font-weight: 600;
+            letter-spacing: -0.03em;
+            margin-bottom: 12px;
+        }
+
+        header p {
+            color: var(--text-secondary);
+            font-size: 1.1em;
+        }
+
+        /* Navigation Tabs */
+        .tabs {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 40px;
+            flex-wrap: wrap;
+        }
+
+        .tab-btn {
+            padding: 12px 24px;
+            border: 1px solid var(--border-color);
+            background: transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-radius: 8px;
+            font-size: 0.9em;
+            transition: all 0.2s ease;
+            font-weight: 500;
+        }
+
+        .tab-btn:hover {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border-color: var(--border-glow);
+        }
+
+        .tab-btn.active {
+            background: var(--text-primary);
+            color: var(--bg-primary);
+            border-color: var(--text-primary);
+        }
+
+        /* Tab Content */
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Glowing Card Effect */
+        .glow-card {
+            position: relative;
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 2px;
+            margin-bottom: 24px;
+            overflow: hidden;
+        }
+
+        .glow-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 16px;
+            padding: 1px;
+            background: linear-gradient(
+                var(--glow-angle, 180deg),
+                transparent 0%,
+                rgba(255,255,255,0.1) 45%,
+                rgba(255,255,255,0.3) 50%,
+                rgba(255,255,255,0.1) 55%,
+                transparent 100%
+            );
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+
+        .glow-card:hover::before {
+            opacity: 1;
+        }
+
+        .glow-card-inner {
+            background: var(--bg-card);
+            border-radius: 14px;
+            padding: 32px;
+            border: 1px solid var(--border-color);
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Section Title */
+        .section-title {
+            font-size: 1.25em;
+            font-weight: 600;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .section-title::before {
+            content: '';
+            width: 4px;
+            height: 20px;
+            background: var(--text-primary);
+            border-radius: 2px;
+        }
+
+        /* Network Diagram */
+        .network-diagram {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 48px 24px;
+            position: relative;
+            min-height: 280px;
+        }
+
+        .device {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .device-icon {
+            width: 80px;
+            height: 80px;
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2em;
+            border: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+        }
+
+        .device-icon.active {
+            border-color: var(--text-primary);
+            box-shadow: 0 0 30px rgba(255,255,255,0.1);
+        }
+
+        .device-label {
+            margin-top: 12px;
+            font-weight: 600;
+            font-size: 0.95em;
+        }
+
+        .device-info {
+            font-size: 0.8em;
+            color: var(--text-muted);
+            margin-top: 4px;
+            font-family: 'SF Mono', Monaco, monospace;
+        }
+
+        /* Connection Line */
+        .connection-line {
+            position: absolute;
+            left: 130px;
+            right: 130px;
+            top: 50%;
+            height: 1px;
+            background: var(--border-color);
+        }
+
+        .connection-line::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent);
+            animation: lineGlow 3s ease-in-out infinite;
+        }
+
+        @keyframes lineGlow {
+            0%, 100% { opacity: 0; transform: translateX(-100%); }
+            50% { opacity: 1; transform: translateX(100%); }
+        }
+
+        /* Packet Animation */
+        .packet-container {
+            position: absolute;
+            left: 130px;
+            right: 130px;
+            top: 50%;
+            transform: translateY(-50%);
+            height: 40px;
+            pointer-events: none;
+        }
+
+        .packet {
+            position: absolute;
+            padding: 6px 14px;
+            background: var(--text-primary);
+            color: var(--bg-primary);
+            border-radius: 6px;
+            font-size: 0.75em;
+            font-weight: 600;
+            white-space: nowrap;
+            opacity: 0;
+            transform: translateY(-50%);
+        }
+
+        .packet.sending {
+            animation: sendPacket 1.5s ease-in-out forwards;
+        }
+
+        .packet.receiving {
+            animation: receivePacket 1.5s ease-in-out forwards;
+        }
+
+        @keyframes sendPacket {
+            0% { left: 0; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { left: calc(100% - 60px); opacity: 0; }
+        }
+
+        @keyframes receivePacket {
+            0% { right: 0; left: auto; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { right: calc(100% - 60px); left: auto; opacity: 0; }
+        }
+
+        /* Controls */
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-top: 32px;
+        }
+
+        .btn {
+            padding: 12px 28px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            background: transparent;
+            color: var(--text-primary);
+        }
+
+        .btn-primary {
+            background: var(--text-primary);
+            color: var(--bg-primary);
+            border-color: var(--text-primary);
+        }
+
+        .btn-primary:hover {
+            background: #e0e0e0;
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-card-hover);
+        }
+
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        /* Log Area */
+        .log-area {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 24px;
+            max-height: 280px;
+            overflow-y: auto;
+            font-family: 'SF Mono', Monaco, 'Consolas', monospace;
+            font-size: 0.85em;
+            border: 1px solid var(--border-color);
+        }
+
+        .log-entry {
+            padding: 10px 14px;
+            margin: 6px 0;
+            border-radius: 6px;
+            border-left: 2px solid var(--border-color);
+            background: var(--bg-card);
+        }
+
+        .log-entry.client { border-left-color: #4ade80; }
+        .log-entry.server { border-left-color: #60a5fa; }
+        .log-entry.info { border-left-color: #fbbf24; }
+        .log-entry.error { border-left-color: #f87171; }
+        .log-entry.success { border-left-color: #4ade80; background: rgba(74, 222, 128, 0.05); }
+
+        .log-time {
+            color: var(--text-muted);
+            margin-right: 12px;
+        }
+
+        /* OSI Model Display */
+        .osi-layers {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 8px;
+            margin: 24px 0;
+        }
+
+        .osi-layer {
+            padding: 16px 12px;
+            border-radius: 8px;
+            text-align: center;
+            transition: all 0.3s ease;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            opacity: 0.5;
+        }
+
+        .osi-layer.active {
+            opacity: 1;
+            border-color: var(--text-primary);
+            box-shadow: 0 0 20px rgba(255,255,255,0.05);
+        }
+
+        .layer-number {
+            font-size: 1.5em;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .layer-name {
+            font-size: 0.75em;
+            color: var(--text-secondary);
+        }
+
+        /* Info Cards Grid */
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 16px;
+            margin-top: 24px;
+        }
+
+        .info-card {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid var(--border-color);
+            transition: all 0.2s ease;
+        }
+
+        .info-card:hover {
+            border-color: var(--border-glow);
+        }
+
+        .info-card h3 {
+            font-size: 1em;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: var(--text-primary);
+        }
+
+        .info-card ul {
+            list-style: none;
+        }
+
+        .info-card li {
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            font-size: 0.9em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .info-card li:last-child {
+            border-bottom: none;
+        }
+
+        .info-card li::before {
+            content: '→';
+            color: var(--text-muted);
+        }
+
+        /* Comparison Table */
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+            font-size: 0.9em;
+        }
+
+        .comparison-table th,
+        .comparison-table td {
+            padding: 14px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .comparison-table th {
+            color: var(--text-secondary);
+            font-weight: 500;
+            font-size: 0.85em;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .comparison-table tr:hover td {
+            background: var(--bg-card);
+        }
+
+        /* Input Area */
+        .input-area {
+            display: flex;
+            gap: 16px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+
+        .input-group {
+            flex: 1;
+            min-width: 180px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+            font-size: 0.85em;
+        }
+
+        .input-group input,
+        .input-group select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 0.95em;
+            transition: all 0.2s ease;
+        }
+
+        .input-group input:focus,
+        .input-group select:focus {
+            outline: none;
+            border-color: var(--text-primary);
+        }
+
+        /* Progress Steps */
+        .progress-steps {
+            display: flex;
+            justify-content: space-between;
+            margin: 32px 0;
+            position: relative;
+        }
+
+        .progress-steps::before {
+            content: '';
+            position: absolute;
+            top: 16px;
+            left: 10%;
+            right: 10%;
+            height: 1px;
+            background: var(--border-color);
+        }
+
+        .progress-step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 1;
+        }
+
+        .step-circle {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--bg-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.85em;
+            border: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+        }
+
+        .step-circle.active {
+            background: var(--text-primary);
+            color: var(--bg-primary);
+            border-color: var(--text-primary);
+        }
+
+        .step-circle.completed {
+            background: #4ade80;
+            border-color: #4ade80;
+            color: var(--bg-primary);
+        }
+
+        .step-label {
+            margin-top: 8px;
+            font-size: 0.75em;
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        /* Segment Display */
+        .segment-display {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+            gap: 6px;
+            margin: 20px 0;
+            font-size: 0.8em;
+        }
+
+        .segment-field {
+            background: var(--bg-secondary);
+            padding: 12px;
+            border-radius: 6px;
+            text-align: center;
+            border: 1px solid var(--border-color);
+        }
+
+        .segment-field.highlight {
+            border-color: var(--text-primary);
+        }
+
+        .field-name {
+            color: var(--text-muted);
+            font-size: 0.8em;
+            margin-bottom: 4px;
+        }
+
+        .field-value {
+            font-weight: 600;
+            font-family: 'SF Mono', Monaco, monospace;
+        }
+
+        /* HTTP Display */
+        .http-display {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 16px;
+            margin: 12px 0;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.85em;
+            border: 1px solid var(--border-color);
+            display: none;
+        }
+
+        .http-method { color: #4ade80; font-weight: 600; }
+        .http-url { color: #60a5fa; }
+        .http-header { color: #fbbf24; }
+        .http-status { color: #4ade80; }
+        .http-body {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px dashed var(--border-color);
+            color: var(--text-secondary);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            header h1 { font-size: 1.8em; }
+            .network-diagram { flex-direction: column; gap: 80px; }
+            .connection-line { display: none; }
+            .osi-layers { grid-template-columns: repeat(4, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Network Simulation</h1>
+            <p>TCP/UDP Protocol & Application Layer Visualization</p>
+        </header>
+
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="overview">Overview</button>
+            <button class="tab-btn" data-tab="tcp">TCP</button>
+            <button class="tab-btn" data-tab="udp">UDP</button>
+            <button class="tab-btn" data-tab="http">HTTP</button>
+            <button class="tab-btn" data-tab="dns">DNS</button>
+            <button class="tab-btn" data-tab="comparison">Compare</button>
+        </div>
+
+        <!-- Overview Tab -->
+        <div id="overview" class="tab-content active">
+            <div class="glow-card">
+                <div class="glow-card-inner">
+                    <h2 class="section-title">OSI Model Layers</h2>
+                    <div class="osi-layers" id="osi-animation">
+                        <div class="osi-layer" data-layer="7">
+                            <div class="layer-number">7</div>
+                            <div class="layer-name">Application</div>
+                        </div>
+                        <div class="osi-layer" data-layer="6">
+                            <div class="layer-number">6</div>
+                            <div class="layer-name">Presentation</div>
+                        </div>
+                        <div class="osi-layer" data-layer="5">
+                            <div class="layer-number">5</div>
+                            <div class="layer-name">Session</div>
+                        </div>
+                        <div class="osi-layer" data-layer="4">
+                            <div class="layer-number">4</div>
+                            <div class="layer-name">Transport</div>
+                        </div>
+                        <div class="osi-layer" data-layer="3">
+                            <div class="layer-number">3</div>
+                            <div class="layer-name">Network</div>
+                        </div>
+                        <div class="osi-layer" data-layer="2">
+                            <div class="layer-number">2</div>
+                            <div class="layer-name">Data Link</div>
+                        </div>
+                        <div class="osi-layer" data-layer="1">
+                            <div class="layer-number">1</div>
+                            <div class="layer-name">Physical</div>
+                        </div>
+                    </div>
+
+                    <div class="info-grid">
+                        <div class="info-card">
+                            <h3>TCP - Transmission Control Protocol</h3>
+                            <ul>
+                                <li>Connection-oriented protocol</li>
+                                <li>Reliable data delivery with ACK</li>
+                                <li>Flow & congestion control</li>
+                                <li>3-way handshake connection</li>
+                                <li>Used by: HTTP, FTP, SMTP, SSH</li>
+                            </ul>
+                        </div>
+                        <div class="info-card">
+                            <h3>UDP - User Datagram Protocol</h3>
+                            <ul>
+                                <li>Connectionless protocol</li>
+                                <li>Fast but unreliable</li>
+                                <li>No flow control</li>
+                                <li>Fire and forget</li>
+                                <li>Used by: DNS, VoIP, Gaming</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TCP Simulation Tab -->
+        <div id="tcp" class="tab-content">
+            <div class="glow-card">
+                <div class="glow-card-inner">
+                    <h2 class="section-title">TCP 3-Way Handshake</h2>
+
+                    <div class="progress-steps" id="tcp-progress">
+                        <div class="progress-step">
+                            <div class="step-circle" data-step="1">1</div>
+                            <div class="step-label">SYN</div>
+                        </div>
+                        <div class="progress-step">
+                            <div class="step-circle" data-step="2">2</div>
+                            <div class="step-label">SYN-ACK</div>
+                        </div>
+                        <div class="progress-step">
+                            <div class="step-circle" data-step="3">3</div>
+                            <div class="step-label">ACK</div>
+                        </div>
+                        <div class="progress-step">
+                            <div class="step-circle" data-step="4">4</div>
+                            <div class="step-label">Data</div>
+                        </div>
+                        <div class="progress-step">
+                            <div class="step-circle" data-step="5">5</div>
+                            <div class="step-label">Close</div>
+                        </div>
+                    </div>
+
+                    <div class="network-diagram">
+                        <div class="device">
+                            <div class="device-icon" id="tcp-client">💻</div>
+                            <div class="device-label">Client</div>
+                            <div class="device-info">192.168.1.100:54321</div>
+                        </div>
+                        <div class="connection-line"></div>
+                        <div class="packet-container" id="tcp-packets"></div>
+                        <div class="device">
+                            <div class="device-icon" id="tcp-server">🖥️</div>
+                            <div class="device-label">Server</div>
+                            <div class="device-info">93.184.216.34:80</div>
+                        </div>
+                    </div>
+
+                    <div class="segment-display">
+                        <div class="segment-field">
+                            <div class="field-name">Src Port</div>
+                            <div class="field-value">54321</div>
+                        </div>
+                        <div class="segment-field">
+                            <div class="field-name">Dst Port</div>
+                            <div class="field-value">80</div>
+                        </div>
+                        <div class="segment-field highlight">
+                            <div class="field-name">Seq</div>
+                            <div class="field-value" id="tcp-seq">0</div>
+                        </div>
+                        <div class="segment-field highlight">
+                            <div class="field-name">Ack</div>
+                            <div class="field-value" id="tcp-ack">0</div>
+                        </div>
+                        <div class="segment-field highlight">
+                            <div class="field-name">Flags</div>
+                            <div class="field-value" id="tcp-flags">---</div>
+                        </div>
+                        <div class="segment-field">
+                            <div class="field-name">Window</div>
+                            <div class="field-value">65535</div>
+                        </div>
+                    </div>
+
+                    <div class="input-area">
+                        <div class="input-group">
+                            <label>Message to send</label>
+                            <input type="text" id="tcp-data" value="Hello, Server!">
+                        </div>
+                    </div>
+
+                    <div class="controls">
+                        <button class="btn btn-primary" id="tcp-start">Start Simulation</button>
+                        <button class="btn btn-secondary" id="tcp-reset">Reset</button>
+                    </div>
+
+                    <div class="log-area" id="tcp-log">
+                        <div class="log-entry info">
+                            <span class="log-time">[00:00:00]</span>
+                            Click "Start Simulation" to begin TCP 3-way handshake...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- UDP Simulation Tab -->
+        <div id="udp" class="tab-content">
+            <div class="glow-card">
+                <div class="glow-card-inner">
+                    <h2 class="section-title">UDP Datagram Transfer</h2>
+
+                    <div class="network-diagram">
+                        <div class="device">
+                            <div class="device-icon" id="udp-client">💻</div>
+                            <div class="device-label">Client</div>
+                            <div class="device-info">192.168.1.100:12345</div>
+                        </div>
+                        <div class="connection-line"></div>
+                        <div class="packet-container" id="udp-packets"></div>
+                        <div class="device">
+                            <div class="device-icon" id="udp-server">🖥️</div>
+                            <div class="device-label">Server</div>
+                            <div class="device-info">8.8.8.8:53</div>
+                        </div>
+                    </div>
+
+                    <div class="segment-display">
+                        <div class="segment-field">
+                            <div class="field-name">Src Port</div>
+                            <div class="field-value">12345</div>
+                        </div>
+                        <div class="segment-field">
+                            <div class="field-name">Dst Port</div>
+                            <div class="field-value">53</div>
+                        </div>
+                        <div class="segment-field">
+                            <div class="field-name">Length</div>
+                            <div class="field-value" id="udp-length">8</div>
+                        </div>
+                        <div class="segment-field">
+                            <div class="field-name">Checksum</div>
+                            <div class="field-value">0x1234</div>
+                        </div>
+                    </div>
+
+                    <div class="input-area">
+                        <div class="input-group">
+                            <label>Packets to send</label>
+                            <input type="number" id="udp-count" value="5" min="1" max="10">
+                        </div>
+                        <div class="input-group">
+                            <label>Packet loss (%)</label>
+                            <input type="number" id="udp-loss" value="20" min="0" max="100">
+                        </div>
+                    </div>
+
+                    <div class="controls">
+                        <button class="btn btn-primary" id="udp-start">Send Datagrams</button>
+                        <button class="btn btn-secondary" id="udp-reset">Reset</button>
+                    </div>
+
+                    <div class="log-area" id="udp-log">
+                        <div class="log-entry info">
+                            <span class="log-time">[00:00:00]</span>
+                            UDP is connectionless - no handshake required!
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- HTTP Tab -->
+        <div id="http" class="tab-content">
+            <div class="glow-card">
+                <div class="glow-card-inner">
+                    <h2 class="section-title">HTTP Request/Response</h2>
+
+                    <div class="progress-steps" id="http-progress">
+                        <div class="progress-step">
+                            <div class="step-circle" data-step="1">1</div>
+                            <div class="step-label">DNS</div>
+                        </div>
+                        <div class="progress-step">
+                            <div class="step-circle" data-step="2">2</div>
+                            <div class="step-label">TCP</div>
+                        </div>
+                        <div class="progress-step">
+                            <div class="step-circle" data-step="3">3</div>
+                            <div class="step-label">Request</div>
+                        </div>
+                        <div class="progress-step">
+                            <div class="step-circle" data-step="4">4</div>
+                            <div class="step-label">Response</div>
+                        </div>
+                        <div class="progress-step">
+                            <div class="step-circle" data-step="5">5</div>
+                            <div class="step-label">Close</div>
+                        </div>
+                    </div>
+
+                    <div class="network-diagram">
+                        <div class="device">
+                            <div class="device-icon" id="http-client">🌐</div>
+                            <div class="device-label">Browser</div>
+                            <div class="device-info">Chrome v120</div>
+                        </div>
+                        <div class="connection-line"></div>
+                        <div class="packet-container" id="http-packets"></div>
+                        <div class="device">
+                            <div class="device-icon" id="http-server">🖥️</div>
+                            <div class="device-label">Server</div>
+                            <div class="device-info">nginx/1.24</div>
+                        </div>
+                    </div>
+
+                    <div class="input-area">
+                        <div class="input-group">
+                            <label>URL</label>
+                            <input type="text" id="http-url" value="https://api.example.com/users">
+                        </div>
+                        <div class="input-group">
+                            <label>Method</label>
+                            <select id="http-method">
+                                <option value="GET">GET</option>
+                                <option value="POST">POST</option>
+                                <option value="PUT">PUT</option>
+                                <option value="DELETE">DELETE</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="http-display" id="http-request-display"></div>
+                    <div class="http-display" id="http-response-display"></div>
+
+                    <div class="controls">
+                        <button class="btn btn-primary" id="http-start">Send Request</button>
+                        <button class="btn btn-secondary" id="http-reset">Reset</button>
+                    </div>
+
+                    <div class="log-area" id="http-log">
+                        <div class="log-entry info">
+                            <span class="log-time">[00:00:00]</span>
+                            HTTP runs over TCP - requires DNS lookup and TCP handshake first
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- DNS Tab -->
+        <div id="dns" class="tab-content">
+            <div class="glow-card">
+                <div class="glow-card-inner">
+                    <h2 class="section-title">DNS Resolution</h2>
+
+                    <div class="progress-steps" id="dns-progress">
+                        <div class="progress-step">
+                            <div class="step-circle" data-step="1">1</div>
+                            <div class="step-label">Cache</div>
+                        </div>
+                        <div class="progress-step">
+                            <div class="step-circle" data-step="2">2</div>
+                            <div class="step-label">Local</div>
+                        </div>
+                        <div class="progress-step">
+                            <div class="step-circle" data-step="3">3</div>
+                            <div class="step-label">Root</div>
+                        </div>
+                        <div class="progress-step">
+                            <div class="step-circle" data-step="4">4</div>
+                            <div class="step-label">TLD</div>
+                        </div>
+                        <div class="progress-step">
+                            <div class="step-circle" data-step="5">5</div>
+                            <div class="step-label">Auth</div>
+                        </div>
+                    </div>
+
+                    <div class="network-diagram">
+                        <div class="device">
+                            <div class="device-icon" id="dns-client">💻</div>
+                            <div class="device-label">Client</div>
+                            <div class="device-info">Resolver</div>
+                        </div>
+                        <div class="connection-line"></div>
+                        <div class="packet-container" id="dns-packets"></div>
+                        <div class="device">
+                            <div class="device-icon" id="dns-server">🌐</div>
+                            <div class="device-label">DNS Server</div>
+                            <div class="device-info" id="dns-server-info">8.8.8.8</div>
+                        </div>
+                    </div>
+
+                    <div class="input-area">
+                        <div class="input-group">
+                            <label>Domain</label>
+                            <input type="text" id="dns-domain" value="www.example.com">
+                        </div>
+                        <div class="input-group">
+                            <label>Record Type</label>
+                            <select id="dns-type">
+                                <option value="A">A (IPv4)</option>
+                                <option value="AAAA">AAAA (IPv6)</option>
+                                <option value="CNAME">CNAME</option>
+                                <option value="MX">MX (Mail)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="controls">
+                        <button class="btn btn-primary" id="dns-start">Resolve Domain</button>
+                        <button class="btn btn-secondary" id="dns-reset">Reset</button>
+                    </div>
+
+                    <div class="log-area" id="dns-log">
+                        <div class="log-entry info">
+                            <span class="log-time">[00:00:00]</span>
+                            DNS uses UDP port 53 for fast queries
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Comparison Tab -->
+        <div id="comparison" class="tab-content">
+            <div class="glow-card">
+                <div class="glow-card-inner">
+                    <h2 class="section-title">TCP vs UDP Comparison</h2>
+
+                    <table class="comparison-table">
+                        <thead>
+                            <tr>
+                                <th>Feature</th>
+                                <th>TCP</th>
+                                <th>UDP</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Connection</td>
+                                <td>Connection-oriented</td>
+                                <td>Connectionless</td>
+                            </tr>
+                            <tr>
+                                <td>Reliability</td>
+                                <td>✓ Reliable (ACK/retransmit)</td>
+                                <td>✗ Unreliable</td>
+                            </tr>
+                            <tr>
+                                <td>Ordering</td>
+                                <td>✓ Ordered delivery</td>
+                                <td>✗ No guarantee</td>
+                            </tr>
+                            <tr>
+                                <td>Speed</td>
+                                <td>Slower (overhead)</td>
+                                <td>Faster (minimal)</td>
+                            </tr>
+                            <tr>
+                                <td>Header Size</td>
+                                <td>20-60 bytes</td>
+                                <td>8 bytes</td>
+                            </tr>
+                            <tr>
+                                <td>Flow Control</td>
+                                <td>✓ Yes</td>
+                                <td>✗ No</td>
+                            </tr>
+                            <tr>
+                                <td>Handshake</td>
+                                <td>3-way handshake</td>
+                                <td>None</td>
+                            </tr>
+                            <tr>
+                                <td>Use Cases</td>
+                                <td>HTTP, FTP, SSH, SMTP</td>
+                                <td>DNS, VoIP, Gaming</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Tab Navigation
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById(btn.dataset.tab).classList.add('active');
+            });
+        });
+
+        // Glowing effect on mouse move
+        document.querySelectorAll('.glow-card').forEach(card => {
+            card.addEventListener('mousemove', (e) => {
+                const rect = card.getBoundingClientRect();
+                const x = e.clientX - rect.left - rect.width / 2;
+                const y = e.clientY - rect.top - rect.height / 2;
+                const angle = Math.atan2(y, x) * 180 / Math.PI + 90;
+                card.style.setProperty('--glow-angle', `${angle}deg`);
+            });
+        });
+
+        // Utility Functions
+        const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+        const getTime = () => `[${new Date().toLocaleTimeString()}]`;
+
+        function addLog(logId, message, type = 'info') {
+            const log = document.getElementById(logId);
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.innerHTML = `<span class="log-time">${getTime()}</span>${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function clearLog(logId) {
+            document.getElementById(logId).innerHTML = '';
+        }
+
+        function createPacket(containerId, text, direction) {
+            const container = document.getElementById(containerId);
+            const packet = document.createElement('div');
+            packet.className = `packet ${direction}`;
+            packet.textContent = text;
+            container.appendChild(packet);
+            setTimeout(() => packet.remove(), 1600);
+        }
+
+        function activateDevice(deviceId) {
+            const device = document.getElementById(deviceId);
+            device.classList.add('active');
+            setTimeout(() => device.classList.remove('active'), 500);
+        }
+
+        function updateProgress(progressId, step) {
+            document.querySelectorAll(`#${progressId} .step-circle`).forEach((circle, i) => {
+                circle.classList.remove('active', 'completed');
+                if (i + 1 < step) circle.classList.add('completed');
+                else if (i + 1 === step) circle.classList.add('active');
+            });
+        }
+
+        function resetProgress(progressId) {
+            document.querySelectorAll(`#${progressId} .step-circle`).forEach(c => {
+                c.classList.remove('active', 'completed');
+            });
+        }
+
+        // TCP Simulation
+        let tcpRunning = false;
+        document.getElementById('tcp-start').addEventListener('click', async () => {
+            if (tcpRunning) return;
+            tcpRunning = true;
+            document.getElementById('tcp-start').disabled = true;
+            clearLog('tcp-log');
+            resetProgress('tcp-progress');
+
+            const data = document.getElementById('tcp-data').value || 'Hello!';
+
+            // SYN
+            addLog('tcp-log', 'Client → SYN', 'client');
+            updateProgress('tcp-progress', 1);
+            document.getElementById('tcp-flags').textContent = 'SYN';
+            document.getElementById('tcp-seq').textContent = '1000';
+            activateDevice('tcp-client');
+            createPacket('tcp-packets', 'SYN', 'sending');
+            await sleep(1600);
+
+            // SYN-ACK
+            addLog('tcp-log', 'Server → SYN-ACK', 'server');
+            updateProgress('tcp-progress', 2);
+            document.getElementById('tcp-flags').textContent = 'SYN+ACK';
+            document.getElementById('tcp-ack').textContent = '1001';
+            activateDevice('tcp-server');
+            createPacket('tcp-packets', 'SYN-ACK', 'receiving');
+            await sleep(1600);
+
+            // ACK
+            addLog('tcp-log', 'Client → ACK (Connection established)', 'client');
+            updateProgress('tcp-progress', 3);
+            document.getElementById('tcp-flags').textContent = 'ACK';
+            activateDevice('tcp-client');
+            createPacket('tcp-packets', 'ACK', 'sending');
+            await sleep(1600);
+
+            addLog('tcp-log', '✓ TCP Connection Established', 'success');
+            await sleep(500);
+
+            // Data Transfer
+            addLog('tcp-log', `Client → DATA: "${data}"`, 'client');
+            updateProgress('tcp-progress', 4);
+            document.getElementById('tcp-flags').textContent = 'PSH+ACK';
+            activateDevice('tcp-client');
+            createPacket('tcp-packets', 'DATA', 'sending');
+            await sleep(1600);
+
+            addLog('tcp-log', 'Server → ACK', 'server');
+            activateDevice('tcp-server');
+            createPacket('tcp-packets', 'ACK', 'receiving');
+            await sleep(1600);
+
+            // Close
+            addLog('tcp-log', 'Client → FIN', 'client');
+            updateProgress('tcp-progress', 5);
+            document.getElementById('tcp-flags').textContent = 'FIN';
+            activateDevice('tcp-client');
+            createPacket('tcp-packets', 'FIN', 'sending');
+            await sleep(1600);
+
+            addLog('tcp-log', 'Server → FIN-ACK', 'server');
+            activateDevice('tcp-server');
+            createPacket('tcp-packets', 'FIN-ACK', 'receiving');
+            await sleep(1600);
+
+            addLog('tcp-log', '✓ Connection Closed', 'success');
+            document.getElementById('tcp-flags').textContent = '---';
+
+            tcpRunning = false;
+            document.getElementById('tcp-start').disabled = false;
+        });
+
+        document.getElementById('tcp-reset').addEventListener('click', () => {
+            tcpRunning = false;
+            document.getElementById('tcp-start').disabled = false;
+            clearLog('tcp-log');
+            resetProgress('tcp-progress');
+            document.getElementById('tcp-flags').textContent = '---';
+            document.getElementById('tcp-seq').textContent = '0';
+            document.getElementById('tcp-ack').textContent = '0';
+            addLog('tcp-log', 'Click "Start Simulation" to begin...', 'info');
+        });
+
+        // UDP Simulation
+        let udpRunning = false;
+        document.getElementById('udp-start').addEventListener('click', async () => {
+            if (udpRunning) return;
+            udpRunning = true;
+            document.getElementById('udp-start').disabled = true;
+            clearLog('udp-log');
+
+            const count = parseInt(document.getElementById('udp-count').value) || 5;
+            const lossRate = parseInt(document.getElementById('udp-loss').value) / 100;
+
+            addLog('udp-log', 'UDP: No handshake - sending directly!', 'info');
+            await sleep(500);
+
+            let sent = 0, received = 0, lost = 0;
+
+            for (let i = 1; i <= count; i++) {
+                const isLost = Math.random() < lossRate;
+                addLog('udp-log', `Sending datagram #${i}...`, 'client');
+                activateDevice('udp-client');
+                createPacket('udp-packets', `PKT ${i}`, 'sending');
+                document.getElementById('udp-length').textContent = 8 + (i * 10);
+                sent++;
+                await sleep(1600);
+
+                if (isLost) {
+                    addLog('udp-log', `✗ Datagram #${i} LOST`, 'error');
+                    lost++;
+                } else {
+                    addLog('udp-log', `Server received #${i}`, 'server');
+                    activateDevice('udp-server');
+                    received++;
+                }
+                await sleep(300);
+            }
+
+            addLog('udp-log', `Stats: Sent=${sent}, Received=${received}, Lost=${lost}`, 'info');
+            addLog('udp-log', `Loss Rate: ${((lost/sent)*100).toFixed(1)}%`, lost > 0 ? 'error' : 'success');
+
+            udpRunning = false;
+            document.getElementById('udp-start').disabled = false;
+        });
+
+        document.getElementById('udp-reset').addEventListener('click', () => {
+            udpRunning = false;
+            document.getElementById('udp-start').disabled = false;
+            clearLog('udp-log');
+            document.getElementById('udp-length').textContent = '8';
+            addLog('udp-log', 'UDP is connectionless - no handshake required!', 'info');
+        });
+
+        // HTTP Simulation
+        let httpRunning = false;
+        document.getElementById('http-start').addEventListener('click', async () => {
+            if (httpRunning) return;
+            httpRunning = true;
+            document.getElementById('http-start').disabled = true;
+            clearLog('http-log');
+            resetProgress('http-progress');
+
+            const url = document.getElementById('http-url').value;
+            const method = document.getElementById('http-method').value;
+            document.getElementById('http-request-display').style.display = 'none';
+            document.getElementById('http-response-display').style.display = 'none';
+
+            let urlObj;
+            try { urlObj = new URL(url); } catch { urlObj = { hostname: 'example.com', pathname: '/api' }; }
+
+            // DNS
+            addLog('http-log', `DNS: Resolving ${urlObj.hostname}...`, 'info');
+            updateProgress('http-progress', 1);
+            await sleep(800);
+            addLog('http-log', `DNS: ${urlObj.hostname} → 93.184.216.34`, 'success');
+
+            // TCP
+            addLog('http-log', 'TCP: 3-way handshake...', 'client');
+            updateProgress('http-progress', 2);
+            activateDevice('http-client');
+            createPacket('http-packets', 'SYN', 'sending');
+            await sleep(1200);
+            activateDevice('http-server');
+            createPacket('http-packets', 'SYN-ACK', 'receiving');
+            await sleep(1200);
+            createPacket('http-packets', 'ACK', 'sending');
+            await sleep(800);
+            addLog('http-log', 'TCP: Connected', 'success');
+
+            // Request
+            addLog('http-log', `HTTP: ${method} ${urlObj.pathname}`, 'client');
+            updateProgress('http-progress', 3);
+            document.getElementById('http-request-display').innerHTML = `
+                <div><span class="http-method">${method}</span> <span class="http-url">${urlObj.pathname}</span> HTTP/1.1</div>
+                <div><span class="http-header">Host:</span> ${urlObj.hostname}</div>
+                <div><span class="http-header">Accept:</span> application/json</div>
+            `;
+            document.getElementById('http-request-display').style.display = 'block';
+            activateDevice('http-client');
+            createPacket('http-packets', method, 'sending');
+            await sleep(1600);
+
+            // Response
+            addLog('http-log', 'HTTP: 200 OK', 'server');
+            updateProgress('http-progress', 4);
+            document.getElementById('http-response-display').innerHTML = `
+                <div>HTTP/1.1 <span class="http-status">200 OK</span></div>
+                <div><span class="http-header">Content-Type:</span> application/json</div>
+                <div class="http-body">{"status": "success", "data": [...]}</div>
+            `;
+            document.getElementById('http-response-display').style.display = 'block';
+            activateDevice('http-server');
+            createPacket('http-packets', '200 OK', 'receiving');
+            await sleep(1600);
+
+            // Close
+            updateProgress('http-progress', 5);
+            addLog('http-log', 'TCP: Connection closed', 'info');
+            addLog('http-log', '✓ HTTP Transaction Complete', 'success');
+
+            httpRunning = false;
+            document.getElementById('http-start').disabled = false;
+        });
+
+        document.getElementById('http-reset').addEventListener('click', () => {
+            httpRunning = false;
+            document.getElementById('http-start').disabled = false;
+            clearLog('http-log');
+            resetProgress('http-progress');
+            document.getElementById('http-request-display').style.display = 'none';
+            document.getElementById('http-response-display').style.display = 'none';
+            addLog('http-log', 'HTTP runs over TCP - requires DNS and handshake', 'info');
+        });
+
+        // DNS Simulation
+        let dnsRunning = false;
+        document.getElementById('dns-start').addEventListener('click', async () => {
+            if (dnsRunning) return;
+            dnsRunning = true;
+            document.getElementById('dns-start').disabled = true;
+            clearLog('dns-log');
+            resetProgress('dns-progress');
+
+            const domain = document.getElementById('dns-domain').value;
+            const type = document.getElementById('dns-type').value;
+            const serverInfo = document.getElementById('dns-server-info');
+
+            addLog('dns-log', `Resolving: ${domain} (${type})`, 'info');
+
+            // Cache
+            updateProgress('dns-progress', 1);
+            addLog('dns-log', 'Checking local cache...', 'client');
+            await sleep(600);
+            addLog('dns-log', 'Not in cache', 'info');
+
+            // Local DNS
+            updateProgress('dns-progress', 2);
+            serverInfo.textContent = '192.168.1.1';
+            addLog('dns-log', 'Query → Local DNS', 'client');
+            activateDevice('dns-client');
+            createPacket('dns-packets', 'Query', 'sending');
+            await sleep(1400);
+
+            // Root
+            updateProgress('dns-progress', 3);
+            serverInfo.textContent = '198.41.0.4';
+            addLog('dns-log', 'Local → Root Server', 'server');
+            createPacket('dns-packets', 'Referral', 'receiving');
+            await sleep(1400);
+
+            // TLD
+            updateProgress('dns-progress', 4);
+            serverInfo.textContent = '192.5.6.30';
+            addLog('dns-log', 'Local → TLD Server (.com)', 'server');
+            createPacket('dns-packets', 'Referral', 'receiving');
+            await sleep(1400);
+
+            // Authoritative
+            updateProgress('dns-progress', 5);
+            serverInfo.textContent = '93.184.216.34';
+            addLog('dns-log', 'Local → Authoritative', 'server');
+            createPacket('dns-packets', 'Response', 'receiving');
+            await sleep(1400);
+
+            const results = { A: '93.184.216.34', AAAA: '2606:2800:220:1::34', CNAME: 'cdn.example.com', MX: 'mail.example.com' };
+            addLog('dns-log', `✓ ${domain} → ${results[type]}`, 'success');
+
+            dnsRunning = false;
+            document.getElementById('dns-start').disabled = false;
+        });
+
+        document.getElementById('dns-reset').addEventListener('click', () => {
+            dnsRunning = false;
+            document.getElementById('dns-start').disabled = false;
+            clearLog('dns-log');
+            resetProgress('dns-progress');
+            document.getElementById('dns-server-info').textContent = '8.8.8.8';
+            addLog('dns-log', 'DNS uses UDP port 53 for fast queries', 'info');
+        });
+
+        // OSI Layer Animation
+        let osiIndex = 0;
+        setInterval(() => {
+            document.querySelectorAll('#osi-animation .osi-layer').forEach((l, i) => {
+                l.classList.toggle('active', i === osiIndex);
+            });
+            osiIndex = (osiIndex + 1) % 7;
+        }, 1500);
+    </script>
+</body>
+</html>
