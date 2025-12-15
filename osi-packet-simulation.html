@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OSI Layer Packet Simulation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #000000;
+            --bg-secondary: #0a0a0a;
+            --bg-card: #111111;
+            --border-color: #1a1a1a;
+            --border-glow: #333333;
+            --text-primary: #ffffff;
+            --text-secondary: #777777;
+            --text-muted: #444444;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            min-height: 100vh;
+            color: var(--text-primary);
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        header {
+            text-align: center;
+            padding: 50px 0;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 40px;
+        }
+
+        header h1 {
+            font-size: 2.2em;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            margin-bottom: 8px;
+        }
+
+        header p {
+            color: var(--text-secondary);
+        }
+
+        /* Glow Card */
+        .glow-card {
+            position: relative;
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 1px;
+            margin-bottom: 24px;
+        }
+
+        .glow-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 16px;
+            padding: 1px;
+            background: linear-gradient(
+                var(--glow-angle, 180deg),
+                transparent 0%,
+                rgba(255,255,255,0.08) 45%,
+                rgba(255,255,255,0.2) 50%,
+                rgba(255,255,255,0.08) 55%,
+                transparent 100%
+            );
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+
+        .glow-card:hover::before {
+            opacity: 1;
+        }
+
+        .glow-card-inner {
+            background: var(--bg-card);
+            border-radius: 15px;
+            padding: 32px;
+            border: 1px solid var(--border-color);
+        }
+
+        /* Control Panel */
+        .control-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 6px;
+            color: var(--text-secondary);
+            font-size: 0.85em;
+        }
+
+        .input-group input,
+        .input-group select {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 0.9em;
+            transition: border-color 0.2s;
+        }
+
+        .input-group input:focus,
+        .input-group select:focus {
+            outline: none;
+            border-color: var(--text-secondary);
+        }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 12px 28px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 500;
+            transition: all 0.2s;
+            background: transparent;
+            color: var(--text-primary);
+        }
+
+        .btn-primary {
+            background: var(--text-primary);
+            color: var(--bg-primary);
+            border-color: var(--text-primary);
+        }
+
+        .btn-primary:hover {
+            background: #e0e0e0;
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-secondary);
+            border-color: var(--border-glow);
+        }
+
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        /* Status Bar */
+        .status-bar {
+            display: flex;
+            justify-content: center;
+            gap: 32px;
+            margin-bottom: 32px;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9em;
+            color: var(--text-secondary);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-muted);
+            transition: all 0.3s;
+        }
+
+        .status-dot.active {
+            background: var(--text-primary);
+            box-shadow: 0 0 12px rgba(255,255,255,0.5);
+        }
+
+        /* Simulation Grid */
+        .simulation-grid {
+            display: grid;
+            grid-template-columns: 1fr 100px 1fr;
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        /* OSI Stack */
+        .osi-stack h3 {
+            text-align: center;
+            margin-bottom: 16px;
+            font-size: 0.9em;
+            color: var(--text-secondary);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .osi-layer {
+            display: flex;
+            align-items: center;
+            padding: 14px 16px;
+            margin-bottom: 6px;
+            border-radius: 8px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            transition: all 0.3s;
+            opacity: 0.4;
+        }
+
+        .osi-layer.active {
+            opacity: 1;
+            border-color: var(--text-primary);
+            box-shadow: 0 0 20px rgba(255,255,255,0.05);
+        }
+
+        .osi-layer.completed {
+            opacity: 0.6;
+        }
+
+        .layer-num {
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            background: var(--bg-card);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.85em;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+
+        .layer-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .layer-name {
+            font-weight: 500;
+            font-size: 0.9em;
+            margin-bottom: 2px;
+        }
+
+        .layer-protocol {
+            font-size: 0.75em;
+            color: var(--text-muted);
+        }
+
+        .layer-action {
+            font-size: 0.7em;
+            color: var(--text-secondary);
+            margin-top: 4px;
+            display: none;
+        }
+
+        .osi-layer.active .layer-action {
+            display: block;
+        }
+
+        /* Network Medium */
+        .network-medium {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .medium-line {
+            width: 2px;
+            height: 100%;
+            background: var(--border-color);
+            position: relative;
+        }
+
+        .medium-line::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 30px;
+            background: linear-gradient(180deg, rgba(255,255,255,0.3), transparent);
+            animation: flowDown 2s ease-in-out infinite;
+            opacity: 0;
+        }
+
+        @keyframes flowDown {
+            0% { top: 0; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: calc(100% - 30px); opacity: 0; }
+        }
+
+        .medium-label {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--bg-primary);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.75em;
+            color: var(--text-muted);
+            border: 1px solid var(--border-color);
+            white-space: nowrap;
+        }
+
+        .traveling-packet {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background: var(--text-primary);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2em;
+            opacity: 0;
+            z-index: 10;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .traveling-packet.visible {
+            opacity: 1;
+        }
+
+        /* Packet Display */
+        .section-title {
+            font-size: 1em;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title::before {
+            content: '';
+            width: 3px;
+            height: 16px;
+            background: var(--text-primary);
+            border-radius: 2px;
+        }
+
+        .packet-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .packet-layer {
+            display: flex;
+            border-radius: 6px;
+            overflow: hidden;
+            opacity: 0.3;
+            transform: scaleY(0.9);
+            transition: all 0.3s;
+            font-size: 0.85em;
+        }
+
+        .packet-layer.visible {
+            opacity: 1;
+            transform: scaleY(1);
+        }
+
+        .packet-layer.highlight {
+            box-shadow: 0 0 0 1px var(--text-primary);
+        }
+
+        .pkt-header {
+            padding: 10px 14px;
+            min-width: 120px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+            font-weight: 500;
+        }
+
+        .pkt-header small {
+            display: block;
+            font-size: 0.75em;
+            color: var(--text-muted);
+            font-weight: normal;
+            margin-top: 2px;
+        }
+
+        .pkt-content {
+            flex: 1;
+            padding: 10px 14px;
+            background: var(--bg-card);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .pkt-field {
+            font-size: 0.85em;
+        }
+
+        .pkt-field .label {
+            color: var(--text-muted);
+        }
+
+        .pkt-field .value {
+            color: var(--text-primary);
+            font-family: 'SF Mono', Monaco, monospace;
+        }
+
+        /* Log Area */
+        .log-area {
+            background: var(--bg-secondary);
+            border-radius: 10px;
+            padding: 16px;
+            max-height: 260px;
+            overflow-y: auto;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.8em;
+            border: 1px solid var(--border-color);
+        }
+
+        .log-entry {
+            padding: 8px 12px;
+            margin: 4px 0;
+            border-radius: 4px;
+            border-left: 2px solid var(--border-color);
+            background: var(--bg-card);
+        }
+
+        .log-entry.sender { border-left-color: #4ade80; }
+        .log-entry.receiver { border-left-color: #60a5fa; }
+        .log-entry.medium { border-left-color: #a78bfa; }
+        .log-entry.info { border-left-color: #fbbf24; }
+        .log-entry.success { border-left-color: #4ade80; background: rgba(74,222,128,0.05); }
+
+        .log-time {
+            color: var(--text-muted);
+            margin-right: 10px;
+        }
+
+        /* Info Grid */
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+            margin-top: 32px;
+        }
+
+        .info-card {
+            background: var(--bg-secondary);
+            border-radius: 10px;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+        }
+
+        .info-card h4 {
+            font-size: 0.9em;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: var(--text-primary);
+        }
+
+        .info-card table {
+            width: 100%;
+            font-size: 0.85em;
+        }
+
+        .info-card td {
+            padding: 6px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .info-card td:first-child {
+            color: var(--text-muted);
+            width: 80px;
+        }
+
+        .info-card tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            .simulation-grid {
+                grid-template-columns: 1fr;
+            }
+            .network-medium {
+                flex-direction: row;
+                height: 60px;
+            }
+            .medium-line {
+                width: 100%;
+                height: 2px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>OSI Layer Packet Simulation</h1>
+            <p>Encapsulation & Decapsulation Process Visualization</p>
+        </header>
+
+        <div class="glow-card">
+            <div class="glow-card-inner">
+                <div class="control-panel">
+                    <div class="input-group">
+                        <label>Data to Send</label>
+                        <input type="text" id="user-data" value="Hello, World!">
+                    </div>
+                    <div class="input-group">
+                        <label>Source IP</label>
+                        <input type="text" id="source-ip" value="192.168.1.100">
+                    </div>
+                    <div class="input-group">
+                        <label>Destination IP</label>
+                        <input type="text" id="dest-ip" value="10.0.0.50">
+                    </div>
+                    <div class="input-group">
+                        <label>Protocol</label>
+                        <select id="protocol">
+                            <option value="TCP">TCP (Port 80)</option>
+                            <option value="UDP">UDP (Port 53)</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Speed</label>
+                        <select id="speed">
+                            <option value="2000">Slow</option>
+                            <option value="1200" selected>Normal</option>
+                            <option value="600">Fast</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="status-bar">
+                    <div class="status-item">
+                        <div class="status-dot" id="status-sender"></div>
+                        <span>Sender</span>
+                    </div>
+                    <div class="status-item">
+                        <div class="status-dot" id="status-medium"></div>
+                        <span>Network</span>
+                    </div>
+                    <div class="status-item">
+                        <div class="status-dot" id="status-receiver"></div>
+                        <span>Receiver</span>
+                    </div>
+                </div>
+
+                <div class="simulation-grid">
+                    <!-- Sender Stack -->
+                    <div class="osi-stack" id="sender-stack">
+                        <h3>Sender (Encapsulation)</h3>
+                        <div class="osi-layer" data-layer="7">
+                            <div class="layer-num">7</div>
+                            <div class="layer-info">
+                                <div class="layer-name">Application</div>
+                                <div class="layer-protocol">HTTP, FTP, DNS</div>
+                                <div class="layer-action">→ Creating data</div>
+                            </div>
+                        </div>
+                        <div class="osi-layer" data-layer="6">
+                            <div class="layer-num">6</div>
+                            <div class="layer-info">
+                                <div class="layer-name">Presentation</div>
+                                <div class="layer-protocol">SSL/TLS, JPEG</div>
+                                <div class="layer-action">→ Encoding & encryption</div>
+                            </div>
+                        </div>
+                        <div class="osi-layer" data-layer="5">
+                            <div class="layer-num">5</div>
+                            <div class="layer-info">
+                                <div class="layer-name">Session</div>
+                                <div class="layer-protocol">NetBIOS, RPC</div>
+                                <div class="layer-action">→ Creating session</div>
+                            </div>
+                        </div>
+                        <div class="osi-layer" data-layer="4">
+                            <div class="layer-num">4</div>
+                            <div class="layer-info">
+                                <div class="layer-name">Transport</div>
+                                <div class="layer-protocol">TCP, UDP</div>
+                                <div class="layer-action">→ Adding segment header</div>
+                            </div>
+                        </div>
+                        <div class="osi-layer" data-layer="3">
+                            <div class="layer-num">3</div>
+                            <div class="layer-info">
+                                <div class="layer-name">Network</div>
+                                <div class="layer-protocol">IP, ICMP</div>
+                                <div class="layer-action">→ Adding IP header</div>
+                            </div>
+                        </div>
+                        <div class="osi-layer" data-layer="2">
+                            <div class="layer-num">2</div>
+                            <div class="layer-info">
+                                <div class="layer-name">Data Link</div>
+                                <div class="layer-protocol">Ethernet, MAC</div>
+                                <div class="layer-action">→ Adding frame header</div>
+                            </div>
+                        </div>
+                        <div class="osi-layer" data-layer="1">
+                            <div class="layer-num">1</div>
+                            <div class="layer-info">
+                                <div class="layer-name">Physical</div>
+                                <div class="layer-protocol">Bits, Signals</div>
+                                <div class="layer-action">→ Converting to bits</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Network Medium -->
+                    <div class="network-medium">
+                        <div class="medium-line">
+                            <div class="traveling-packet" id="traveling-packet">📦</div>
+                        </div>
+                        <div class="medium-label">Network</div>
+                    </div>
+
+                    <!-- Receiver Stack -->
+                    <div class="osi-stack" id="receiver-stack">
+                        <h3>Receiver (Decapsulation)</h3>
+                        <div class="osi-layer" data-layer="1">
+                            <div class="layer-num">1</div>
+                            <div class="layer-info">
+                                <div class="layer-name">Physical</div>
+                                <div class="layer-protocol">Bits, Signals</div>
+                                <div class="layer-action">← Receiving bits</div>
+                            </div>
+                        </div>
+                        <div class="osi-layer" data-layer="2">
+                            <div class="layer-num">2</div>
+                            <div class="layer-info">
+                                <div class="layer-name">Data Link</div>
+                                <div class="layer-protocol">Ethernet, MAC</div>
+                                <div class="layer-action">← Removing frame header</div>
+                            </div>
+                        </div>
+                        <div class="osi-layer" data-layer="3">
+                            <div class="layer-num">3</div>
+                            <div class="layer-info">
+                                <div class="layer-name">Network</div>
+                                <div class="layer-protocol">IP, ICMP</div>
+                                <div class="layer-action">← Removing IP header</div>
+                            </div>
+                        </div>
+                        <div class="osi-layer" data-layer="4">
+                            <div class="layer-num">4</div>
+                            <div class="layer-info">
+                                <div class="layer-name">Transport</div>
+                                <div class="layer-protocol">TCP, UDP</div>
+                                <div class="layer-action">← Removing segment header</div>
+                            </div>
+                        </div>
+                        <div class="osi-layer" data-layer="5">
+                            <div class="layer-num">5</div>
+                            <div class="layer-info">
+                                <div class="layer-name">Session</div>
+                                <div class="layer-protocol">NetBIOS, RPC</div>
+                                <div class="layer-action">← Verifying session</div>
+                            </div>
+                        </div>
+                        <div class="osi-layer" data-layer="6">
+                            <div class="layer-num">6</div>
+                            <div class="layer-info">
+                                <div class="layer-name">Presentation</div>
+                                <div class="layer-protocol">SSL/TLS, JPEG</div>
+                                <div class="layer-action">← Decoding & decryption</div>
+                            </div>
+                        </div>
+                        <div class="osi-layer" data-layer="7">
+                            <div class="layer-num">7</div>
+                            <div class="layer-info">
+                                <div class="layer-name">Application</div>
+                                <div class="layer-protocol">HTTP, FTP, DNS</div>
+                                <div class="layer-action">← Data received!</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="controls">
+                    <button class="btn btn-primary" id="start-btn">Start Simulation</button>
+                    <button class="btn btn-secondary" id="reset-btn">Reset</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Packet Structure -->
+        <div class="glow-card">
+            <div class="glow-card-inner">
+                <h3 class="section-title">Packet Structure (PDU)</h3>
+                <div class="packet-stack" id="packet-viz">
+                    <div class="packet-layer" data-layer="7">
+                        <div class="pkt-header">L7: Data<small>Application</small></div>
+                        <div class="pkt-content">
+                            <span class="pkt-field"><span class="label">Payload:</span> <span class="value" id="pkt-data">Hello, World!</span></span>
+                        </div>
+                    </div>
+                    <div class="packet-layer" data-layer="6">
+                        <div class="pkt-header">L6: Encoded<small>Presentation</small></div>
+                        <div class="pkt-content">
+                            <span class="pkt-field"><span class="label">Encoding:</span> <span class="value">UTF-8</span></span>
+                            <span class="pkt-field"><span class="label">Encryption:</span> <span class="value">TLS 1.3</span></span>
+                        </div>
+                    </div>
+                    <div class="packet-layer" data-layer="5">
+                        <div class="pkt-header">L5: Session<small>Session</small></div>
+                        <div class="pkt-content">
+                            <span class="pkt-field"><span class="label">Session ID:</span> <span class="value" id="pkt-session">0x7A3F</span></span>
+                        </div>
+                    </div>
+                    <div class="packet-layer" data-layer="4">
+                        <div class="pkt-header">L4: Segment<small id="l4-type">TCP Header</small></div>
+                        <div class="pkt-content">
+                            <span class="pkt-field"><span class="label">Src:</span> <span class="value" id="pkt-sport">54321</span></span>
+                            <span class="pkt-field"><span class="label">Dst:</span> <span class="value" id="pkt-dport">80</span></span>
+                            <span class="pkt-field"><span class="label">Seq:</span> <span class="value">1000</span></span>
+                            <span class="pkt-field"><span class="label">Flags:</span> <span class="value" id="pkt-flags">PSH+ACK</span></span>
+                        </div>
+                    </div>
+                    <div class="packet-layer" data-layer="3">
+                        <div class="pkt-header">L3: Packet<small>IP Header</small></div>
+                        <div class="pkt-content">
+                            <span class="pkt-field"><span class="label">Src IP:</span> <span class="value" id="pkt-sip">192.168.1.100</span></span>
+                            <span class="pkt-field"><span class="label">Dst IP:</span> <span class="value" id="pkt-dip">10.0.0.50</span></span>
+                            <span class="pkt-field"><span class="label">TTL:</span> <span class="value">64</span></span>
+                            <span class="pkt-field"><span class="label">Proto:</span> <span class="value" id="pkt-proto">TCP</span></span>
+                        </div>
+                    </div>
+                    <div class="packet-layer" data-layer="2">
+                        <div class="pkt-header">L2: Frame<small>Ethernet</small></div>
+                        <div class="pkt-content">
+                            <span class="pkt-field"><span class="label">Src MAC:</span> <span class="value" id="pkt-smac">AA:BB:CC:11:22:33</span></span>
+                            <span class="pkt-field"><span class="label">Dst MAC:</span> <span class="value" id="pkt-dmac">DD:EE:FF:44:55:66</span></span>
+                            <span class="pkt-field"><span class="label">Type:</span> <span class="value">0x0800</span></span>
+                        </div>
+                    </div>
+                    <div class="packet-layer" data-layer="1">
+                        <div class="pkt-header">L1: Bits<small>Physical</small></div>
+                        <div class="pkt-content">
+                            <span class="pkt-field"><span class="label">Binary:</span> <span class="value" id="pkt-bits">10101010 11001100...</span></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Log Area -->
+        <div class="glow-card">
+            <div class="glow-card-inner">
+                <h3 class="section-title">Activity Log</h3>
+                <div class="log-area" id="log-container">
+                    <div class="log-entry info">
+                        <span class="log-time">[System]</span>
+                        Click "Start Simulation" to begin
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Info Cards -->
+        <div class="info-grid">
+            <div class="info-card">
+                <h4>PDU Names per Layer</h4>
+                <table>
+                    <tr><td>L7-L5</td><td>Data</td></tr>
+                    <tr><td>L4</td><td>Segment (TCP) / Datagram (UDP)</td></tr>
+                    <tr><td>L3</td><td>Packet</td></tr>
+                    <tr><td>L2</td><td>Frame</td></tr>
+                    <tr><td>L1</td><td>Bits</td></tr>
+                </table>
+            </div>
+            <div class="info-card">
+                <h4>Encapsulation vs Decapsulation</h4>
+                <table>
+                    <tr><td>Encap</td><td>Headers added (L7 → L1)</td></tr>
+                    <tr><td>Decap</td><td>Headers removed (L1 → L7)</td></tr>
+                    <tr><td>Header</td><td>Control info at front</td></tr>
+                    <tr><td>Trailer</td><td>FCS at end (L2 only)</td></tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Elements
+        const startBtn = document.getElementById('start-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const logContainer = document.getElementById('log-container');
+        const travelingPacket = document.getElementById('traveling-packet');
+
+        let isRunning = false;
+
+        // Utility
+        const sleep = ms => new Promise(r => setTimeout(r, ms));
+        const getTime = () => new Date().toLocaleTimeString();
+
+        function addLog(msg, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.innerHTML = `<span class="log-time">[${getTime()}]</span>${msg}`;
+            logContainer.appendChild(entry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        function clearLogs() {
+            logContainer.innerHTML = '';
+        }
+
+        function setStatus(id, active) {
+            document.getElementById(id).classList.toggle('active', active);
+        }
+
+        function activateLayer(stack, layer) {
+            document.querySelectorAll(`#${stack} .osi-layer`).forEach(l => {
+                l.classList.remove('active');
+            });
+            const el = document.querySelector(`#${stack} .osi-layer[data-layer="${layer}"]`);
+            if (el) el.classList.add('active');
+        }
+
+        function resetLayers() {
+            document.querySelectorAll('.osi-layer').forEach(l => l.classList.remove('active', 'completed'));
+        }
+
+        function showPacketLayer(layer, highlight = false) {
+            const el = document.querySelector(`.packet-layer[data-layer="${layer}"]`);
+            if (el) {
+                el.classList.add('visible');
+                if (highlight) {
+                    el.classList.add('highlight');
+                    setTimeout(() => el.classList.remove('highlight'), 400);
+                }
+            }
+        }
+
+        function hidePacketLayer(layer) {
+            const el = document.querySelector(`.packet-layer[data-layer="${layer}"]`);
+            if (el) el.classList.remove('visible');
+        }
+
+        function resetPacketLayers() {
+            document.querySelectorAll('.packet-layer').forEach(l => l.classList.remove('visible', 'highlight'));
+        }
+
+        function generateMAC() {
+            const hex = '0123456789ABCDEF';
+            let mac = '';
+            for (let i = 0; i < 6; i++) {
+                mac += hex[Math.floor(Math.random() * 16)] + hex[Math.floor(Math.random() * 16)];
+                if (i < 5) mac += ':';
+            }
+            return mac;
+        }
+
+        function textToBinary(text) {
+            return text.split('').slice(0, 3).map(c => c.charCodeAt(0).toString(2).padStart(8, '0')).join(' ') + '...';
+        }
+
+        // Glow effect
+        document.querySelectorAll('.glow-card').forEach(card => {
+            card.addEventListener('mousemove', e => {
+                const rect = card.getBoundingClientRect();
+                const x = e.clientX - rect.left - rect.width / 2;
+                const y = e.clientY - rect.top - rect.height / 2;
+                const angle = Math.atan2(y, x) * 180 / Math.PI + 90;
+                card.style.setProperty('--glow-angle', `${angle}deg`);
+            });
+        });
+
+        // Main Simulation
+        async function runSimulation() {
+            if (isRunning) return;
+            isRunning = true;
+            startBtn.disabled = true;
+
+            const userData = document.getElementById('user-data').value || 'Hello!';
+            const sourceIP = document.getElementById('source-ip').value;
+            const destIP = document.getElementById('dest-ip').value;
+            const protocol = document.getElementById('protocol').value;
+            const speed = parseInt(document.getElementById('speed').value);
+
+            // Update packet display
+            document.getElementById('pkt-data').textContent = userData;
+            document.getElementById('pkt-sip').textContent = sourceIP;
+            document.getElementById('pkt-dip').textContent = destIP;
+            document.getElementById('pkt-smac').textContent = generateMAC();
+            document.getElementById('pkt-dmac').textContent = generateMAC();
+            document.getElementById('pkt-session').textContent = '0x' + Math.floor(Math.random() * 65535).toString(16).toUpperCase();
+            document.getElementById('pkt-bits').textContent = textToBinary(userData);
+            document.getElementById('pkt-proto').textContent = protocol;
+            document.getElementById('l4-type').textContent = protocol === 'TCP' ? 'TCP Header' : 'UDP Header';
+            document.getElementById('pkt-dport').textContent = protocol === 'TCP' ? '80' : '53';
+
+            clearLogs();
+            resetLayers();
+            resetPacketLayers();
+
+            addLog(`Starting simulation: ${sourceIP} → ${destIP} via ${protocol}`, 'info');
+            await sleep(speed * 0.3);
+
+            // === ENCAPSULATION ===
+            addLog('═══ ENCAPSULATION ═══', 'sender');
+            setStatus('status-sender', true);
+
+            for (let layer = 7; layer >= 1; layer--) {
+                activateLayer('sender-stack', layer);
+                showPacketLayer(layer, true);
+                const layerNames = ['', 'Physical', 'Data Link', 'Network', 'Transport', 'Session', 'Presentation', 'Application'];
+                const actions = ['', 'Converting to bits', 'Adding frame header', 'Adding IP header', 'Adding segment header', 'Creating session', 'Encoding data', 'Creating data'];
+                addLog(`L${layer} ${layerNames[layer]}: ${actions[layer]}`, 'sender');
+                await sleep(speed);
+            }
+
+            setStatus('status-sender', false);
+
+            // === TRANSMISSION ===
+            addLog('═══ TRANSMISSION ═══', 'medium');
+            setStatus('status-medium', true);
+            travelingPacket.classList.add('visible');
+            travelingPacket.style.top = '0%';
+
+            const steps = 30;
+            for (let i = 0; i <= steps; i++) {
+                travelingPacket.style.top = `${(i / steps) * 90}%`;
+                await sleep(speed * 1.5 / steps);
+            }
+
+            travelingPacket.classList.remove('visible');
+            setStatus('status-medium', false);
+            addLog('Transmission complete', 'medium');
+            await sleep(speed * 0.2);
+
+            // === DECAPSULATION ===
+            addLog('═══ DECAPSULATION ═══', 'receiver');
+            setStatus('status-receiver', true);
+
+            for (let layer = 1; layer <= 7; layer++) {
+                activateLayer('receiver-stack', layer);
+                hidePacketLayer(layer);
+                const layerNames = ['', 'Physical', 'Data Link', 'Network', 'Transport', 'Session', 'Presentation', 'Application'];
+                const actions = ['', 'Receiving bits', 'Removing frame header', 'Removing IP header', 'Removing segment header', 'Verifying session', 'Decoding data', 'Data received!'];
+                addLog(`L${layer} ${layerNames[layer]}: ${actions[layer]}`, 'receiver');
+                await sleep(speed);
+            }
+
+            setStatus('status-receiver', false);
+            addLog('═══ COMPLETE ═══', 'success');
+            addLog(`Data "${userData}" successfully delivered!`, 'success');
+
+            resetLayers();
+            isRunning = false;
+            startBtn.disabled = false;
+        }
+
+        function resetSimulation() {
+            isRunning = false;
+            startBtn.disabled = false;
+            clearLogs();
+            resetLayers();
+            resetPacketLayers();
+            setStatus('status-sender', false);
+            setStatus('status-medium', false);
+            setStatus('status-receiver', false);
+            travelingPacket.classList.remove('visible');
+            addLog('Simulation reset. Click "Start Simulation" to begin.', 'info');
+        }
+
+        startBtn.addEventListener('click', runSimulation);
+        resetBtn.addEventListener('click', resetSimulation);
+        resetPacketLayers();
+    </script>
+</body>
+</html>
