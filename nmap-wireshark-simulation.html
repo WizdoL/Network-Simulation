@@ -1,0 +1,1628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nmap Scanning & Wireshark Capture Simulation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #000000;
+            --bg-secondary: #0a0a0a;
+            --bg-card: #111111;
+            --bg-terminal: #0d1117;
+            --border-color: #1a1a1a;
+            --text-primary: #ffffff;
+            --text-secondary: #777777;
+            --text-muted: #444444;
+            --accent-green: #4ade80;
+            --accent-red: #f87171;
+            --accent-blue: #60a5fa;
+            --accent-yellow: #fbbf24;
+            --accent-purple: #a78bfa;
+            --accent-cyan: #22d3ee;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            min-height: 100vh;
+            color: var(--text-primary);
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 30px 20px;
+        }
+
+        header {
+            text-align: center;
+            padding: 40px 0;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 30px;
+        }
+
+        header h1 {
+            font-size: 2em;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            margin-bottom: 8px;
+        }
+
+        header p {
+            color: var(--text-secondary);
+        }
+
+        /* Glow Card */
+        .glow-card {
+            position: relative;
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 1px;
+            margin-bottom: 20px;
+        }
+
+        .glow-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 12px;
+            padding: 1px;
+            background: linear-gradient(var(--glow-angle, 180deg), transparent 0%, rgba(255,255,255,0.1) 50%, transparent 100%);
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+
+        .glow-card:hover::before {
+            opacity: 1;
+        }
+
+        .glow-card-inner {
+            background: var(--bg-card);
+            border-radius: 11px;
+            padding: 24px;
+            border: 1px solid var(--border-color);
+        }
+
+        .section-title {
+            font-size: 1em;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title::before {
+            content: '';
+            width: 3px;
+            height: 16px;
+            background: var(--text-primary);
+            border-radius: 2px;
+        }
+
+        /* Layout Grid */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 1100px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Scan Type Selector */
+        .scan-types {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .scan-type-btn {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: left;
+            color: var(--text-primary);
+        }
+
+        .scan-type-btn:hover {
+            border-color: var(--text-muted);
+            background: var(--bg-card);
+        }
+
+        .scan-type-btn.active {
+            border-color: var(--accent-green);
+            background: rgba(74, 222, 128, 0.05);
+        }
+
+        .scan-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 6px;
+            background: var(--bg-card);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1em;
+            flex-shrink: 0;
+        }
+
+        .scan-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .scan-name {
+            font-weight: 600;
+            font-size: 0.9em;
+            margin-bottom: 2px;
+        }
+
+        .scan-cmd {
+            font-size: 0.75em;
+            color: var(--accent-green);
+            font-family: 'SF Mono', Monaco, monospace;
+        }
+
+        /* Network Diagram */
+        .network-diagram {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 30px 20px;
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .device {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .device-icon {
+            width: 70px;
+            height: 70px;
+            background: var(--bg-secondary);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8em;
+            border: 1px solid var(--border-color);
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .device-icon.attacker {
+            border-color: var(--accent-red);
+        }
+
+        .device-icon.target {
+            border-color: var(--accent-blue);
+        }
+
+        .device-icon.active {
+            box-shadow: 0 0 20px rgba(255,255,255,0.1);
+        }
+
+        .device-label {
+            margin-top: 10px;
+            font-weight: 600;
+            font-size: 0.85em;
+        }
+
+        .device-ip {
+            font-size: 0.75em;
+            color: var(--text-muted);
+            font-family: 'SF Mono', Monaco, monospace;
+        }
+
+        .connection-line {
+            position: absolute;
+            left: 100px;
+            right: 100px;
+            top: 50%;
+            height: 2px;
+            background: var(--border-color);
+        }
+
+        .packet-container {
+            position: absolute;
+            left: 100px;
+            right: 100px;
+            top: 50%;
+            transform: translateY(-50%);
+            height: 50px;
+            pointer-events: none;
+        }
+
+        .packet {
+            position: absolute;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.7em;
+            font-weight: 600;
+            font-family: 'SF Mono', Monaco, monospace;
+            white-space: nowrap;
+            opacity: 0;
+            transform: translateY(-50%);
+        }
+
+        .packet.syn { background: var(--accent-green); color: #000; }
+        .packet.syn-ack { background: var(--accent-blue); color: #000; }
+        .packet.ack { background: var(--accent-cyan); color: #000; }
+        .packet.rst { background: var(--accent-red); color: #fff; }
+        .packet.fin { background: var(--accent-purple); color: #fff; }
+        .packet.udp { background: var(--accent-yellow); color: #000; }
+        .packet.icmp { background: var(--accent-red); color: #fff; }
+        .packet.null { background: var(--text-muted); color: #fff; }
+
+        .packet.sending {
+            animation: sendPacket 0.8s ease-in-out forwards;
+        }
+
+        .packet.receiving {
+            animation: receivePacket 0.8s ease-in-out forwards;
+        }
+
+        @keyframes sendPacket {
+            0% { left: 0; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { left: calc(100% - 50px); opacity: 0; }
+        }
+
+        @keyframes receivePacket {
+            0% { right: 0; left: auto; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { right: calc(100% - 50px); left: auto; opacity: 0; }
+        }
+
+        /* Port Status Grid */
+        .port-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            gap: 6px;
+            margin-bottom: 20px;
+        }
+
+        .port-item {
+            padding: 8px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            text-align: center;
+            font-size: 0.75em;
+            font-family: 'SF Mono', Monaco, monospace;
+            transition: all 0.3s;
+        }
+
+        .port-item.scanning {
+            border-color: var(--accent-yellow);
+            background: rgba(251, 191, 36, 0.1);
+        }
+
+        .port-item.open {
+            border-color: var(--accent-green);
+            background: rgba(74, 222, 128, 0.1);
+        }
+
+        .port-item.closed {
+            border-color: var(--accent-red);
+            background: rgba(248, 113, 113, 0.1);
+        }
+
+        .port-item.filtered {
+            border-color: var(--accent-yellow);
+            background: rgba(251, 191, 36, 0.05);
+        }
+
+        .port-num {
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+
+        .port-status {
+            font-size: 0.7em;
+            color: var(--text-muted);
+        }
+
+        .port-item.open .port-status { color: var(--accent-green); }
+        .port-item.closed .port-status { color: var(--accent-red); }
+        .port-item.filtered .port-status { color: var(--accent-yellow); }
+
+        /* Wireshark Style Capture */
+        .wireshark-panel {
+            background: var(--bg-terminal);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+
+        .wireshark-header {
+            display: flex;
+            align-items: center;
+            padding: 10px 14px;
+            background: #161b22;
+            border-bottom: 1px solid var(--border-color);
+            gap: 10px;
+        }
+
+        .wireshark-title {
+            font-size: 0.85em;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .wireshark-filter {
+            flex: 1;
+            padding: 6px 10px;
+            background: var(--bg-terminal);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            color: var(--accent-green);
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.8em;
+        }
+
+        .wireshark-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.75em;
+        }
+
+        .wireshark-table th {
+            padding: 8px 10px;
+            text-align: left;
+            background: #161b22;
+            color: var(--text-secondary);
+            font-weight: 500;
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+        }
+
+        .wireshark-table td {
+            padding: 6px 10px;
+            border-bottom: 1px solid #1a1f26;
+            vertical-align: top;
+        }
+
+        .wireshark-table tbody {
+            display: block;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .wireshark-table thead, .wireshark-table tbody tr {
+            display: table;
+            width: 100%;
+            table-layout: fixed;
+        }
+
+        .wireshark-table tr:hover {
+            background: rgba(255,255,255,0.02);
+        }
+
+        .wireshark-table tr.selected {
+            background: rgba(74, 222, 128, 0.1);
+        }
+
+        .pkt-no { width: 50px; color: var(--text-muted); }
+        .pkt-time { width: 80px; color: var(--text-muted); }
+        .pkt-src { width: 130px; color: var(--accent-blue); }
+        .pkt-dst { width: 130px; color: var(--accent-purple); }
+        .pkt-proto { width: 60px; }
+        .pkt-len { width: 50px; color: var(--text-muted); }
+        .pkt-info { color: var(--text-secondary); }
+
+        .proto-tcp { color: var(--accent-green); }
+        .proto-udp { color: var(--accent-yellow); }
+        .proto-icmp { color: var(--accent-red); }
+
+        /* Packet Detail Panel */
+        .packet-detail {
+            background: var(--bg-terminal);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            margin-top: 16px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.75em;
+        }
+
+        .packet-detail-header {
+            padding: 10px 14px;
+            background: #161b22;
+            border-bottom: 1px solid var(--border-color);
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .packet-detail-content {
+            padding: 12px 14px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .detail-section {
+            margin-bottom: 12px;
+        }
+
+        .detail-section-title {
+            color: var(--accent-cyan);
+            margin-bottom: 6px;
+            cursor: pointer;
+        }
+
+        .detail-section-title::before {
+            content: '▼ ';
+            font-size: 0.8em;
+        }
+
+        .detail-row {
+            display: flex;
+            padding: 2px 0 2px 16px;
+        }
+
+        .detail-label {
+            color: var(--text-muted);
+            min-width: 180px;
+        }
+
+        .detail-value {
+            color: var(--text-primary);
+        }
+
+        .flag-set { color: var(--accent-green); }
+        .flag-unset { color: var(--text-muted); }
+
+        /* Terminal Output */
+        .terminal {
+            background: var(--bg-terminal);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+
+        .terminal-header {
+            display: flex;
+            align-items: center;
+            padding: 10px 14px;
+            background: #161b22;
+            border-bottom: 1px solid var(--border-color);
+            gap: 8px;
+        }
+
+        .terminal-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .terminal-dot.red { background: #ff5f56; }
+        .terminal-dot.yellow { background: #ffbd2e; }
+        .terminal-dot.green { background: #27ca40; }
+
+        .terminal-title {
+            flex: 1;
+            text-align: center;
+            font-size: 0.8em;
+            color: var(--text-muted);
+        }
+
+        .terminal-body {
+            padding: 16px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.8em;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        .terminal-line {
+            margin-bottom: 4px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .terminal-prompt {
+            color: var(--accent-green);
+        }
+
+        .terminal-command {
+            color: var(--text-primary);
+        }
+
+        .terminal-output {
+            color: var(--text-secondary);
+        }
+
+        .terminal-success {
+            color: var(--accent-green);
+        }
+
+        .terminal-warning {
+            color: var(--accent-yellow);
+        }
+
+        .terminal-error {
+            color: var(--accent-red);
+        }
+
+        /* Controls */
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 16px;
+        }
+
+        .btn {
+            padding: 10px 24px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85em;
+            font-weight: 500;
+            transition: all 0.2s;
+            background: transparent;
+            color: var(--text-primary);
+        }
+
+        .btn-primary {
+            background: var(--accent-green);
+            color: #000;
+            border-color: var(--accent-green);
+        }
+
+        .btn-primary:hover {
+            background: #22c55e;
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-secondary);
+        }
+
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        /* Scan Info Panel */
+        .scan-info-panel {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+            border: 1px solid var(--border-color);
+        }
+
+        .scan-info-title {
+            font-size: 1.1em;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--accent-green);
+        }
+
+        .scan-info-desc {
+            font-size: 0.85em;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+            line-height: 1.6;
+        }
+
+        .scan-characteristics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+        }
+
+        .char-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8em;
+        }
+
+        .char-label {
+            color: var(--text-muted);
+        }
+
+        .char-value {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .char-value.stealth { color: var(--accent-green); }
+        .char-value.noisy { color: var(--accent-red); }
+        .char-value.moderate { color: var(--accent-yellow); }
+
+        /* Hex Dump */
+        .hex-dump {
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.7em;
+            background: #0a0d10;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 12px;
+            overflow-x: auto;
+        }
+
+        .hex-row {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 2px;
+        }
+
+        .hex-offset {
+            color: var(--accent-blue);
+            min-width: 60px;
+        }
+
+        .hex-bytes {
+            color: var(--text-secondary);
+            min-width: 360px;
+        }
+
+        .hex-bytes span.highlight {
+            color: var(--accent-green);
+        }
+
+        .hex-ascii {
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Nmap Scanning & Wireshark Capture</h1>
+            <p>Interactive simulation of various Nmap scan types with packet capture analysis</p>
+        </header>
+
+        <div class="main-grid">
+            <!-- Left Panel - Scan Types -->
+            <div class="left-panel">
+                <div class="glow-card">
+                    <div class="glow-card-inner">
+                        <h3 class="section-title">Scan Types</h3>
+                        <div class="scan-types" id="scan-types">
+                            <button class="scan-type-btn active" data-scan="syn">
+                                <div class="scan-icon">🔍</div>
+                                <div class="scan-info">
+                                    <div class="scan-name">SYN Scan (Stealth)</div>
+                                    <div class="scan-cmd">nmap -sS</div>
+                                </div>
+                            </button>
+                            <button class="scan-type-btn" data-scan="connect">
+                                <div class="scan-icon">🔗</div>
+                                <div class="scan-info">
+                                    <div class="scan-name">TCP Connect</div>
+                                    <div class="scan-cmd">nmap -sT</div>
+                                </div>
+                            </button>
+                            <button class="scan-type-btn" data-scan="udp">
+                                <div class="scan-icon">📡</div>
+                                <div class="scan-info">
+                                    <div class="scan-name">UDP Scan</div>
+                                    <div class="scan-cmd">nmap -sU</div>
+                                </div>
+                            </button>
+                            <button class="scan-type-btn" data-scan="fin">
+                                <div class="scan-icon">🏁</div>
+                                <div class="scan-info">
+                                    <div class="scan-name">FIN Scan</div>
+                                    <div class="scan-cmd">nmap -sF</div>
+                                </div>
+                            </button>
+                            <button class="scan-type-btn" data-scan="xmas">
+                                <div class="scan-icon">🎄</div>
+                                <div class="scan-info">
+                                    <div class="scan-name">XMAS Scan</div>
+                                    <div class="scan-cmd">nmap -sX</div>
+                                </div>
+                            </button>
+                            <button class="scan-type-btn" data-scan="null">
+                                <div class="scan-icon">⭕</div>
+                                <div class="scan-info">
+                                    <div class="scan-name">NULL Scan</div>
+                                    <div class="scan-cmd">nmap -sN</div>
+                                </div>
+                            </button>
+                            <button class="scan-type-btn" data-scan="ack">
+                                <div class="scan-icon">✓</div>
+                                <div class="scan-info">
+                                    <div class="scan-name">ACK Scan</div>
+                                    <div class="scan-cmd">nmap -sA</div>
+                                </div>
+                            </button>
+                            <button class="scan-type-btn" data-scan="window">
+                                <div class="scan-icon">🪟</div>
+                                <div class="scan-info">
+                                    <div class="scan-name">Window Scan</div>
+                                    <div class="scan-cmd">nmap -sW</div>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel - Main Content -->
+            <div class="right-panel">
+                <!-- Scan Info -->
+                <div class="scan-info-panel" id="scan-info-panel">
+                    <div class="scan-info-title" id="info-title">SYN Scan (Half-Open Scan)</div>
+                    <div class="scan-info-desc" id="info-desc">
+                        The most popular scan type. It's fast, stealthy, and works against any compliant TCP stack.
+                        Called "half-open" because it never completes the TCP handshake - sends SYN, receives SYN/ACK (open) or RST (closed), then sends RST to tear down.
+                    </div>
+                    <div class="scan-characteristics">
+                        <div class="char-item">
+                            <span class="char-label">Stealth:</span>
+                            <span class="char-value stealth" id="char-stealth">High</span>
+                        </div>
+                        <div class="char-item">
+                            <span class="char-label">Speed:</span>
+                            <span class="char-value" id="char-speed">Fast</span>
+                        </div>
+                        <div class="char-item">
+                            <span class="char-label">Root:</span>
+                            <span class="char-value" id="char-root">Required</span>
+                        </div>
+                        <div class="char-item">
+                            <span class="char-label">Reliability:</span>
+                            <span class="char-value" id="char-reliability">High</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Network Diagram -->
+                <div class="glow-card">
+                    <div class="glow-card-inner">
+                        <h3 class="section-title">Network Topology</h3>
+                        <div class="network-diagram">
+                            <div class="device">
+                                <div class="device-icon attacker" id="attacker">💀</div>
+                                <div class="device-label">Attacker</div>
+                                <div class="device-ip">192.168.1.100</div>
+                            </div>
+                            <div class="connection-line"></div>
+                            <div class="packet-container" id="packet-container"></div>
+                            <div class="device">
+                                <div class="device-icon target" id="target">🖥️</div>
+                                <div class="device-label">Target</div>
+                                <div class="device-ip">192.168.1.50</div>
+                            </div>
+                        </div>
+
+                        <h4 style="font-size: 0.85em; color: var(--text-secondary); margin-bottom: 10px;">Target Ports</h4>
+                        <div class="port-grid" id="port-grid">
+                            <div class="port-item" data-port="21" data-state="closed">
+                                <div class="port-num">21</div>
+                                <div class="port-status">FTP</div>
+                            </div>
+                            <div class="port-item" data-port="22" data-state="open">
+                                <div class="port-num">22</div>
+                                <div class="port-status">SSH</div>
+                            </div>
+                            <div class="port-item" data-port="23" data-state="closed">
+                                <div class="port-num">23</div>
+                                <div class="port-status">Telnet</div>
+                            </div>
+                            <div class="port-item" data-port="25" data-state="filtered">
+                                <div class="port-num">25</div>
+                                <div class="port-status">SMTP</div>
+                            </div>
+                            <div class="port-item" data-port="53" data-state="open">
+                                <div class="port-num">53</div>
+                                <div class="port-status">DNS</div>
+                            </div>
+                            <div class="port-item" data-port="80" data-state="open">
+                                <div class="port-num">80</div>
+                                <div class="port-status">HTTP</div>
+                            </div>
+                            <div class="port-item" data-port="443" data-state="open">
+                                <div class="port-num">443</div>
+                                <div class="port-status">HTTPS</div>
+                            </div>
+                            <div class="port-item" data-port="3306" data-state="filtered">
+                                <div class="port-num">3306</div>
+                                <div class="port-status">MySQL</div>
+                            </div>
+                        </div>
+
+                        <div class="controls">
+                            <button class="btn btn-primary" id="start-scan">▶ Start Scan</button>
+                            <button class="btn btn-secondary" id="reset-scan">↺ Reset</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Wireshark Capture -->
+                <div class="glow-card">
+                    <div class="glow-card-inner">
+                        <h3 class="section-title">Wireshark Packet Capture</h3>
+                        <div class="wireshark-panel">
+                            <div class="wireshark-header">
+                                <span class="wireshark-title">Capture</span>
+                                <input type="text" class="wireshark-filter" id="wireshark-filter" value="tcp or udp or icmp" readonly>
+                            </div>
+                            <table class="wireshark-table">
+                                <thead>
+                                    <tr>
+                                        <th class="pkt-no">No.</th>
+                                        <th class="pkt-time">Time</th>
+                                        <th class="pkt-src">Source</th>
+                                        <th class="pkt-dst">Destination</th>
+                                        <th class="pkt-proto">Proto</th>
+                                        <th class="pkt-len">Len</th>
+                                        <th class="pkt-info">Info</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="wireshark-body">
+                                    <tr>
+                                        <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 20px;">
+                                            Click "Start Scan" to begin packet capture...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Packet Detail -->
+                        <div class="packet-detail" id="packet-detail" style="display: none;">
+                            <div class="packet-detail-header">Packet Details</div>
+                            <div class="packet-detail-content" id="packet-detail-content">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Nmap Terminal Output -->
+                <div class="glow-card">
+                    <div class="glow-card-inner">
+                        <h3 class="section-title">Nmap Output</h3>
+                        <div class="terminal">
+                            <div class="terminal-header">
+                                <div class="terminal-dot red"></div>
+                                <div class="terminal-dot yellow"></div>
+                                <div class="terminal-dot green"></div>
+                                <div class="terminal-title">Terminal — nmap</div>
+                            </div>
+                            <div class="terminal-body" id="terminal-body">
+                                <div class="terminal-line">
+                                    <span class="terminal-prompt">root@kali:~# </span>
+                                    <span class="terminal-command" id="nmap-command">nmap -sS 192.168.1.50</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Scan type definitions
+        const scanTypes = {
+            syn: {
+                name: 'SYN Scan (Half-Open Scan)',
+                cmd: 'nmap -sS',
+                desc: 'The most popular scan type. It\'s fast, stealthy, and works against any compliant TCP stack. Called "half-open" because it never completes the TCP handshake - sends SYN, receives SYN/ACK (open) or RST (closed), then sends RST to tear down.',
+                stealth: 'High',
+                stealthClass: 'stealth',
+                speed: 'Fast',
+                root: 'Required',
+                reliability: 'High',
+                openResponse: 'SYN/ACK → RST',
+                closedResponse: 'RST',
+                filteredResponse: 'No response',
+                packets: {
+                    open: ['SYN', 'SYN-ACK', 'RST'],
+                    closed: ['SYN', 'RST'],
+                    filtered: ['SYN']
+                }
+            },
+            connect: {
+                name: 'TCP Connect Scan',
+                cmd: 'nmap -sT',
+                desc: 'Completes the full TCP three-way handshake. Less stealthy because the full connection is logged. Used when SYN scan is not available (non-root users). Slower but more reliable.',
+                stealth: 'Low',
+                stealthClass: 'noisy',
+                speed: 'Moderate',
+                root: 'Not Required',
+                reliability: 'Very High',
+                openResponse: 'SYN/ACK → ACK → RST',
+                closedResponse: 'RST',
+                filteredResponse: 'No response',
+                packets: {
+                    open: ['SYN', 'SYN-ACK', 'ACK', 'RST-ACK'],
+                    closed: ['SYN', 'RST'],
+                    filtered: ['SYN']
+                }
+            },
+            udp: {
+                name: 'UDP Scan',
+                cmd: 'nmap -sU',
+                desc: 'Sends UDP packets to target ports. Open ports rarely respond, closed ports send ICMP port unreachable. Very slow because of rate limiting and lack of responses.',
+                stealth: 'Moderate',
+                stealthClass: 'moderate',
+                speed: 'Very Slow',
+                root: 'Required',
+                reliability: 'Moderate',
+                openResponse: 'No response / UDP response',
+                closedResponse: 'ICMP Port Unreachable',
+                filteredResponse: 'No response',
+                packets: {
+                    open: ['UDP'],
+                    closed: ['UDP', 'ICMP'],
+                    filtered: ['UDP']
+                }
+            },
+            fin: {
+                name: 'FIN Scan',
+                cmd: 'nmap -sF',
+                desc: 'Sends TCP packet with only FIN flag set. Closed ports respond with RST, open/filtered ports don\'t respond. Can bypass some firewalls and packet filters. Only works on RFC-compliant TCP stacks.',
+                stealth: 'High',
+                stealthClass: 'stealth',
+                speed: 'Moderate',
+                root: 'Required',
+                reliability: 'Low',
+                openResponse: 'No response',
+                closedResponse: 'RST',
+                filteredResponse: 'No response',
+                packets: {
+                    open: ['FIN'],
+                    closed: ['FIN', 'RST'],
+                    filtered: ['FIN']
+                }
+            },
+            xmas: {
+                name: 'XMAS Scan',
+                cmd: 'nmap -sX',
+                desc: 'Sends TCP packet with FIN, PSH, and URG flags set (lit up like a Christmas tree). Same logic as FIN scan - closed ports respond with RST. Doesn\'t work against Windows systems.',
+                stealth: 'High',
+                stealthClass: 'stealth',
+                speed: 'Moderate',
+                root: 'Required',
+                reliability: 'Low',
+                openResponse: 'No response',
+                closedResponse: 'RST',
+                filteredResponse: 'No response',
+                packets: {
+                    open: ['XMAS'],
+                    closed: ['XMAS', 'RST'],
+                    filtered: ['XMAS']
+                }
+            },
+            null: {
+                name: 'NULL Scan',
+                cmd: 'nmap -sN',
+                desc: 'Sends TCP packet with no flags set. Like FIN and XMAS scans, relies on RFC 793 compliant systems. Closed ports respond with RST, open ports don\'t respond.',
+                stealth: 'High',
+                stealthClass: 'stealth',
+                speed: 'Moderate',
+                root: 'Required',
+                reliability: 'Low',
+                openResponse: 'No response',
+                closedResponse: 'RST',
+                filteredResponse: 'No response',
+                packets: {
+                    open: ['NULL'],
+                    closed: ['NULL', 'RST'],
+                    filtered: ['NULL']
+                }
+            },
+            ack: {
+                name: 'ACK Scan',
+                cmd: 'nmap -sA',
+                desc: 'Sends TCP packet with only ACK flag. Used to map firewall rules - determines if ports are filtered or unfiltered. Both open and closed ports respond with RST if unfiltered.',
+                stealth: 'Moderate',
+                stealthClass: 'moderate',
+                speed: 'Fast',
+                root: 'Required',
+                reliability: 'N/A (Firewall detection)',
+                openResponse: 'RST (unfiltered)',
+                closedResponse: 'RST (unfiltered)',
+                filteredResponse: 'No response',
+                packets: {
+                    open: ['ACK', 'RST'],
+                    closed: ['ACK', 'RST'],
+                    filtered: ['ACK']
+                }
+            },
+            window: {
+                name: 'Window Scan',
+                cmd: 'nmap -sW',
+                desc: 'Same as ACK scan but examines TCP Window field of RST packets. Some systems return positive window size for open ports and zero for closed. Implementation dependent.',
+                stealth: 'Moderate',
+                stealthClass: 'moderate',
+                speed: 'Fast',
+                root: 'Required',
+                reliability: 'Low',
+                openResponse: 'RST (window > 0)',
+                closedResponse: 'RST (window = 0)',
+                filteredResponse: 'No response',
+                packets: {
+                    open: ['ACK', 'RST'],
+                    closed: ['ACK', 'RST'],
+                    filtered: ['ACK']
+                }
+            }
+        };
+
+        // Port states (simulated)
+        const portStates = {
+            21: 'closed',
+            22: 'open',
+            23: 'closed',
+            25: 'filtered',
+            53: 'open',
+            80: 'open',
+            443: 'open',
+            3306: 'filtered'
+        };
+
+        // State
+        let currentScan = 'syn';
+        let isScanning = false;
+        let packetNo = 0;
+        let startTime = 0;
+
+        // Elements
+        const scanTypeButtons = document.querySelectorAll('.scan-type-btn');
+        const startBtn = document.getElementById('start-scan');
+        const resetBtn = document.getElementById('reset-scan');
+        const wiresharkBody = document.getElementById('wireshark-body');
+        const terminalBody = document.getElementById('terminal-body');
+        const packetDetail = document.getElementById('packet-detail');
+        const packetDetailContent = document.getElementById('packet-detail-content');
+
+        // Utility functions
+        const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+        function getTime() {
+            return ((Date.now() - startTime) / 1000).toFixed(6);
+        }
+
+        function randomPort() {
+            return 40000 + Math.floor(Math.random() * 20000);
+        }
+
+        function randomSeq() {
+            return Math.floor(Math.random() * 4294967295);
+        }
+
+        // Update scan info panel
+        function updateScanInfo(scanType) {
+            const scan = scanTypes[scanType];
+            document.getElementById('info-title').textContent = scan.name;
+            document.getElementById('info-desc').textContent = scan.desc;
+            document.getElementById('char-stealth').textContent = scan.stealth;
+            document.getElementById('char-stealth').className = `char-value ${scan.stealthClass}`;
+            document.getElementById('char-speed').textContent = scan.speed;
+            document.getElementById('char-root').textContent = scan.root;
+            document.getElementById('char-reliability').textContent = scan.reliability;
+            document.getElementById('nmap-command').textContent = `${scan.cmd} 192.168.1.50`;
+        }
+
+        // Create visual packet
+        function createPacket(text, type, direction) {
+            const container = document.getElementById('packet-container');
+            const packet = document.createElement('div');
+            packet.className = `packet ${type} ${direction}`;
+            packet.textContent = text;
+            container.appendChild(packet);
+            setTimeout(() => packet.remove(), 900);
+        }
+
+        // Add Wireshark row
+        function addWiresharkRow(src, dst, proto, len, info, flags = {}) {
+            packetNo++;
+            const row = document.createElement('tr');
+            row.dataset.packetNo = packetNo;
+            row.innerHTML = `
+                <td class="pkt-no">${packetNo}</td>
+                <td class="pkt-time">${getTime()}</td>
+                <td class="pkt-src">${src}</td>
+                <td class="pkt-dst">${dst}</td>
+                <td class="pkt-proto proto-${proto.toLowerCase()}">${proto}</td>
+                <td class="pkt-len">${len}</td>
+                <td class="pkt-info">${info}</td>
+            `;
+            row.onclick = () => showPacketDetail(packetNo, src, dst, proto, info, flags);
+            wiresharkBody.appendChild(row);
+            wiresharkBody.scrollTop = wiresharkBody.scrollHeight;
+            return row;
+        }
+
+        // Show packet detail
+        function showPacketDetail(no, src, dst, proto, info, flags) {
+            document.querySelectorAll('.wireshark-table tr').forEach(r => r.classList.remove('selected'));
+            document.querySelector(`tr[data-packet-no="${no}"]`)?.classList.add('selected');
+
+            packetDetail.style.display = 'block';
+
+            let flagsHtml = '';
+            if (proto === 'TCP') {
+                flagsHtml = `
+                    <div class="detail-section">
+                        <div class="detail-section-title">Transmission Control Protocol</div>
+                        <div class="detail-row"><span class="detail-label">Source Port:</span><span class="detail-value">${flags.sport || randomPort()}</span></div>
+                        <div class="detail-row"><span class="detail-label">Destination Port:</span><span class="detail-value">${flags.dport || 80}</span></div>
+                        <div class="detail-row"><span class="detail-label">Sequence Number:</span><span class="detail-value">${flags.seq || randomSeq()}</span></div>
+                        <div class="detail-row"><span class="detail-label">Acknowledgment Number:</span><span class="detail-value">${flags.ack || 0}</span></div>
+                        <div class="detail-row"><span class="detail-label">Flags:</span><span class="detail-value">${flags.flagStr || '0x002'}</span></div>
+                        <div class="detail-row"><span class="detail-label">  .... ..${flags.syn ? '<span class="flag-set">1</span>' : '<span class="flag-unset">0</span>'} = SYN:</span><span class="detail-value">${flags.syn ? 'Set' : 'Not set'}</span></div>
+                        <div class="detail-row"><span class="detail-label">  .... .${flags.ack_flag ? '<span class="flag-set">1</span>' : '<span class="flag-unset">0</span>'}. = ACK:</span><span class="detail-value">${flags.ack_flag ? 'Set' : 'Not set'}</span></div>
+                        <div class="detail-row"><span class="detail-label">  .... ${flags.rst ? '<span class="flag-set">1</span>' : '<span class="flag-unset">0</span>'}.. = RST:</span><span class="detail-value">${flags.rst ? 'Set' : 'Not set'}</span></div>
+                        <div class="detail-row"><span class="detail-label">  ...${flags.fin ? '<span class="flag-set">1</span>' : '<span class="flag-unset">0</span>'} .... = FIN:</span><span class="detail-value">${flags.fin ? 'Set' : 'Not set'}</span></div>
+                        <div class="detail-row"><span class="detail-label">  ..${flags.psh ? '<span class="flag-set">1</span>' : '<span class="flag-unset">0</span>'}. .... = PSH:</span><span class="detail-value">${flags.psh ? 'Set' : 'Not set'}</span></div>
+                        <div class="detail-row"><span class="detail-label">  .${flags.urg ? '<span class="flag-set">1</span>' : '<span class="flag-unset">0</span>'}.. .... = URG:</span><span class="detail-value">${flags.urg ? 'Set' : 'Not set'}</span></div>
+                        <div class="detail-row"><span class="detail-label">Window Size:</span><span class="detail-value">${flags.window || 65535}</span></div>
+                    </div>
+                `;
+            } else if (proto === 'UDP') {
+                flagsHtml = `
+                    <div class="detail-section">
+                        <div class="detail-section-title">User Datagram Protocol</div>
+                        <div class="detail-row"><span class="detail-label">Source Port:</span><span class="detail-value">${flags.sport || randomPort()}</span></div>
+                        <div class="detail-row"><span class="detail-label">Destination Port:</span><span class="detail-value">${flags.dport || 53}</span></div>
+                        <div class="detail-row"><span class="detail-label">Length:</span><span class="detail-value">${flags.len || 8}</span></div>
+                        <div class="detail-row"><span class="detail-label">Checksum:</span><span class="detail-value">0x${Math.floor(Math.random()*65535).toString(16)}</span></div>
+                    </div>
+                `;
+            } else if (proto === 'ICMP') {
+                flagsHtml = `
+                    <div class="detail-section">
+                        <div class="detail-section-title">Internet Control Message Protocol</div>
+                        <div class="detail-row"><span class="detail-label">Type:</span><span class="detail-value">3 (Destination Unreachable)</span></div>
+                        <div class="detail-row"><span class="detail-label">Code:</span><span class="detail-value">3 (Port Unreachable)</span></div>
+                        <div class="detail-row"><span class="detail-label">Checksum:</span><span class="detail-value">0x${Math.floor(Math.random()*65535).toString(16)}</span></div>
+                    </div>
+                `;
+            }
+
+            packetDetailContent.innerHTML = `
+                <div class="detail-section">
+                    <div class="detail-section-title">Internet Protocol Version 4</div>
+                    <div class="detail-row"><span class="detail-label">Source Address:</span><span class="detail-value">${src}</span></div>
+                    <div class="detail-row"><span class="detail-label">Destination Address:</span><span class="detail-value">${dst}</span></div>
+                    <div class="detail-row"><span class="detail-label">Protocol:</span><span class="detail-value">${proto} (${proto === 'TCP' ? '6' : proto === 'UDP' ? '17' : '1'})</span></div>
+                    <div class="detail-row"><span class="detail-label">TTL:</span><span class="detail-value">64</span></div>
+                </div>
+                ${flagsHtml}
+            `;
+        }
+
+        // Add terminal line
+        function addTerminalLine(text, className = 'terminal-output') {
+            const line = document.createElement('div');
+            line.className = 'terminal-line';
+            line.innerHTML = `<span class="${className}">${text}</span>`;
+            terminalBody.appendChild(line);
+            terminalBody.scrollTop = terminalBody.scrollHeight;
+        }
+
+        // Reset port states
+        function resetPorts() {
+            document.querySelectorAll('.port-item').forEach(item => {
+                item.classList.remove('scanning', 'open', 'closed', 'filtered');
+                item.querySelector('.port-status').textContent = item.dataset.port === '21' ? 'FTP' :
+                    item.dataset.port === '22' ? 'SSH' :
+                    item.dataset.port === '23' ? 'Telnet' :
+                    item.dataset.port === '25' ? 'SMTP' :
+                    item.dataset.port === '53' ? 'DNS' :
+                    item.dataset.port === '80' ? 'HTTP' :
+                    item.dataset.port === '443' ? 'HTTPS' : 'MySQL';
+            });
+        }
+
+        // Scan a single port
+        async function scanPort(port, state, scanType) {
+            const scan = scanTypes[scanType];
+            const portItem = document.querySelector(`.port-item[data-port="${port}"]`);
+            const srcPort = randomPort();
+            const seq = randomSeq();
+
+            portItem.classList.add('scanning');
+
+            const attacker = '192.168.1.100';
+            const target = '192.168.1.50';
+
+            // Different scan behavior based on type
+            switch (scanType) {
+                case 'syn':
+                    // Send SYN
+                    createPacket('SYN', 'syn', 'sending');
+                    addWiresharkRow(attacker, target, 'TCP', 60, `${srcPort} → ${port} [SYN] Seq=${seq} Win=65535 Len=0`,
+                        { sport: srcPort, dport: port, seq, syn: true, flagStr: '0x002' });
+                    document.getElementById('attacker').classList.add('active');
+                    await sleep(400);
+                    document.getElementById('attacker').classList.remove('active');
+                    await sleep(400);
+
+                    if (state === 'open') {
+                        // Receive SYN-ACK
+                        createPacket('SYN-ACK', 'syn-ack', 'receiving');
+                        addWiresharkRow(target, attacker, 'TCP', 60, `${port} → ${srcPort} [SYN, ACK] Seq=${seq+1} Ack=${seq+1} Win=65535`,
+                            { sport: port, dport: srcPort, seq: seq+1, ack: seq+1, syn: true, ack_flag: true, flagStr: '0x012' });
+                        document.getElementById('target').classList.add('active');
+                        await sleep(400);
+                        document.getElementById('target').classList.remove('active');
+                        await sleep(400);
+
+                        // Send RST
+                        createPacket('RST', 'rst', 'sending');
+                        addWiresharkRow(attacker, target, 'TCP', 54, `${srcPort} → ${port} [RST] Seq=${seq+1} Win=0`,
+                            { sport: srcPort, dport: port, seq: seq+1, rst: true, flagStr: '0x004' });
+                        await sleep(300);
+
+                        portItem.classList.remove('scanning');
+                        portItem.classList.add('open');
+                        portItem.querySelector('.port-status').textContent = 'open';
+                    } else if (state === 'closed') {
+                        // Receive RST
+                        createPacket('RST', 'rst', 'receiving');
+                        addWiresharkRow(target, attacker, 'TCP', 54, `${port} → ${srcPort} [RST, ACK] Seq=0 Ack=${seq+1} Win=0`,
+                            { sport: port, dport: srcPort, rst: true, ack_flag: true, flagStr: '0x014' });
+                        document.getElementById('target').classList.add('active');
+                        await sleep(400);
+                        document.getElementById('target').classList.remove('active');
+
+                        portItem.classList.remove('scanning');
+                        portItem.classList.add('closed');
+                        portItem.querySelector('.port-status').textContent = 'closed';
+                    } else {
+                        // No response (filtered)
+                        await sleep(800);
+                        portItem.classList.remove('scanning');
+                        portItem.classList.add('filtered');
+                        portItem.querySelector('.port-status').textContent = 'filtered';
+                    }
+                    break;
+
+                case 'connect':
+                    // Send SYN
+                    createPacket('SYN', 'syn', 'sending');
+                    addWiresharkRow(attacker, target, 'TCP', 60, `${srcPort} → ${port} [SYN] Seq=${seq}`,
+                        { sport: srcPort, dport: port, seq, syn: true, flagStr: '0x002' });
+                    await sleep(400);
+
+                    if (state === 'open') {
+                        // SYN-ACK
+                        createPacket('SYN-ACK', 'syn-ack', 'receiving');
+                        addWiresharkRow(target, attacker, 'TCP', 60, `${port} → ${srcPort} [SYN, ACK] Seq=${seq+1} Ack=${seq+1}`,
+                            { sport: port, dport: srcPort, syn: true, ack_flag: true, flagStr: '0x012' });
+                        await sleep(400);
+
+                        // ACK (complete handshake)
+                        createPacket('ACK', 'ack', 'sending');
+                        addWiresharkRow(attacker, target, 'TCP', 54, `${srcPort} → ${port} [ACK] Seq=${seq+1} Ack=${seq+2}`,
+                            { sport: srcPort, dport: port, ack_flag: true, flagStr: '0x010' });
+                        await sleep(400);
+
+                        // RST to close
+                        createPacket('RST', 'rst', 'sending');
+                        addWiresharkRow(attacker, target, 'TCP', 54, `${srcPort} → ${port} [RST, ACK] Seq=${seq+1}`,
+                            { sport: srcPort, dport: port, rst: true, ack_flag: true, flagStr: '0x014' });
+                        await sleep(300);
+
+                        portItem.classList.remove('scanning');
+                        portItem.classList.add('open');
+                        portItem.querySelector('.port-status').textContent = 'open';
+                    } else if (state === 'closed') {
+                        createPacket('RST', 'rst', 'receiving');
+                        addWiresharkRow(target, attacker, 'TCP', 54, `${port} → ${srcPort} [RST, ACK]`,
+                            { sport: port, dport: srcPort, rst: true, ack_flag: true, flagStr: '0x014' });
+                        await sleep(400);
+
+                        portItem.classList.remove('scanning');
+                        portItem.classList.add('closed');
+                        portItem.querySelector('.port-status').textContent = 'closed';
+                    } else {
+                        await sleep(800);
+                        portItem.classList.remove('scanning');
+                        portItem.classList.add('filtered');
+                        portItem.querySelector('.port-status').textContent = 'filtered';
+                    }
+                    break;
+
+                case 'udp':
+                    // Send UDP
+                    createPacket('UDP', 'udp', 'sending');
+                    addWiresharkRow(attacker, target, 'UDP', 42, `${srcPort} → ${port} Len=0`,
+                        { sport: srcPort, dport: port, len: 8 });
+                    await sleep(400);
+
+                    if (state === 'open') {
+                        // Usually no response for open UDP
+                        await sleep(600);
+                        portItem.classList.remove('scanning');
+                        portItem.classList.add('open');
+                        portItem.querySelector('.port-status').textContent = 'open|filtered';
+                    } else if (state === 'closed') {
+                        // ICMP Port Unreachable
+                        createPacket('ICMP', 'icmp', 'receiving');
+                        addWiresharkRow(target, attacker, 'ICMP', 70, `Destination unreachable (Port unreachable)`, {});
+                        await sleep(400);
+
+                        portItem.classList.remove('scanning');
+                        portItem.classList.add('closed');
+                        portItem.querySelector('.port-status').textContent = 'closed';
+                    } else {
+                        await sleep(800);
+                        portItem.classList.remove('scanning');
+                        portItem.classList.add('filtered');
+                        portItem.querySelector('.port-status').textContent = 'filtered';
+                    }
+                    break;
+
+                case 'fin':
+                    // Send FIN
+                    createPacket('FIN', 'fin', 'sending');
+                    addWiresharkRow(attacker, target, 'TCP', 54, `${srcPort} → ${port} [FIN] Seq=${seq}`,
+                        { sport: srcPort, dport: port, seq, fin: true, flagStr: '0x001' });
+                    await sleep(400);
+
+                    if (state === 'closed') {
+                        createPacket('RST', 'rst', 'receiving');
+                        addWiresharkRow(target, attacker, 'TCP', 54, `${port} → ${srcPort} [RST] Seq=0`,
+                            { sport: port, dport: srcPort, rst: true, flagStr: '0x004' });
+                        await sleep(400);
+
+                        portItem.classList.remove('scanning');
+                        portItem.classList.add('closed');
+                        portItem.querySelector('.port-status').textContent = 'closed';
+                    } else {
+                        // No response = open|filtered
+                        await sleep(800);
+                        portItem.classList.remove('scanning');
+                        portItem.classList.add('open');
+                        portItem.querySelector('.port-status').textContent = 'open|filtered';
+                    }
+                    break;
+
+                case 'xmas':
+                    // Send XMAS (FIN+PSH+URG)
+                    createPacket('XMAS', 'fin', 'sending');
+                    addWiresharkRow(attacker, target, 'TCP', 54, `${srcPort} → ${port} [FIN, PSH, URG] Seq=${seq}`,
+                        { sport: srcPort, dport: port, seq, fin: true, psh: true, urg: true, flagStr: '0x029' });
+                    await sleep(400);
+
+                    if (state === 'closed') {
+                        createPacket('RST', 'rst', 'receiving');
+                        addWiresharkRow(target, attacker, 'TCP', 54, `${port} → ${srcPort} [RST]`,
+                            { sport: port, dport: srcPort, rst: true, flagStr: '0x004' });
+                        await sleep(400);
+
+                        portItem.classList.remove('scanning');
+                        portItem.classList.add('closed');
+                        portItem.querySelector('.port-status').textContent = 'closed';
+                    } else {
+                        await sleep(800);
+                        portItem.classList.remove('scanning');
+                        portItem.classList.add('open');
+                        portItem.querySelector('.port-status').textContent = 'open|filtered';
+                    }
+                    break;
+
+                case 'null':
+                    // Send NULL (no flags)
+                    createPacket('NULL', 'null', 'sending');
+                    addWiresharkRow(attacker, target, 'TCP', 54, `${srcPort} → ${port} [<None>] Seq=${seq}`,
+                        { sport: srcPort, dport: port, seq, flagStr: '0x000' });
+                    await sleep(400);
+
+                    if (state === 'closed') {
+                        createPacket('RST', 'rst', 'receiving');
+                        addWiresharkRow(target, attacker, 'TCP', 54, `${port} → ${srcPort} [RST]`,
+                            { sport: port, dport: srcPort, rst: true, flagStr: '0x004' });
+                        await sleep(400);
+
+                        portItem.classList.remove('scanning');
+                        portItem.classList.add('closed');
+                        portItem.querySelector('.port-status').textContent = 'closed';
+                    } else {
+                        await sleep(800);
+                        portItem.classList.remove('scanning');
+                        portItem.classList.add('open');
+                        portItem.querySelector('.port-status').textContent = 'open|filtered';
+                    }
+                    break;
+
+                case 'ack':
+                case 'window':
+                    // Send ACK
+                    createPacket('ACK', 'ack', 'sending');
+                    addWiresharkRow(attacker, target, 'TCP', 54, `${srcPort} → ${port} [ACK] Seq=${seq} Ack=0`,
+                        { sport: srcPort, dport: port, seq, ack_flag: true, flagStr: '0x010' });
+                    await sleep(400);
+
+                    if (state !== 'filtered') {
+                        createPacket('RST', 'rst', 'receiving');
+                        const windowSize = scanType === 'window' && state === 'open' ? 1024 : 0;
+                        addWiresharkRow(target, attacker, 'TCP', 54, `${port} → ${srcPort} [RST] Win=${windowSize}`,
+                            { sport: port, dport: srcPort, rst: true, window: windowSize, flagStr: '0x004' });
+                        await sleep(400);
+
+                        portItem.classList.remove('scanning');
+                        if (scanType === 'ack') {
+                            portItem.classList.add('open'); // unfiltered
+                            portItem.querySelector('.port-status').textContent = 'unfiltered';
+                        } else {
+                            // Window scan
+                            if (state === 'open') {
+                                portItem.classList.add('open');
+                                portItem.querySelector('.port-status').textContent = 'open';
+                            } else {
+                                portItem.classList.add('closed');
+                                portItem.querySelector('.port-status').textContent = 'closed';
+                            }
+                        }
+                    } else {
+                        await sleep(800);
+                        portItem.classList.remove('scanning');
+                        portItem.classList.add('filtered');
+                        portItem.querySelector('.port-status').textContent = 'filtered';
+                    }
+                    break;
+            }
+        }
+
+        // Main scan function
+        async function startScan() {
+            if (isScanning) return;
+            isScanning = true;
+            startBtn.disabled = true;
+            packetNo = 0;
+            startTime = Date.now();
+
+            const scan = scanTypes[currentScan];
+
+            // Clear previous
+            wiresharkBody.innerHTML = '';
+            packetDetail.style.display = 'none';
+            resetPorts();
+
+            // Reset terminal
+            terminalBody.innerHTML = `
+                <div class="terminal-line">
+                    <span class="terminal-prompt">root@kali:~# </span>
+                    <span class="terminal-command">${scan.cmd} 192.168.1.50</span>
+                </div>
+            `;
+
+            addTerminalLine(`Starting Nmap 7.94 ( https://nmap.org ) at ${new Date().toLocaleString()}`);
+            addTerminalLine(`Initiating ${scan.name} at ${new Date().toLocaleTimeString()}`);
+            addTerminalLine(`Scanning 192.168.1.50 [8 ports]`);
+            await sleep(500);
+
+            // Scan each port
+            const ports = [21, 22, 23, 25, 53, 80, 443, 3306];
+            for (const port of ports) {
+                if (!isScanning) break;
+                const state = portStates[port];
+                await scanPort(port, state, currentScan);
+                await sleep(200);
+            }
+
+            // Summary
+            addTerminalLine('');
+            addTerminalLine('Nmap scan report for 192.168.1.50');
+            addTerminalLine('Host is up (0.0012s latency).');
+            addTerminalLine('');
+            addTerminalLine('PORT     STATE         SERVICE');
+
+            const results = { open: 0, closed: 0, filtered: 0 };
+            ports.forEach(port => {
+                const portItem = document.querySelector(`.port-item[data-port="${port}"]`);
+                const status = portItem.querySelector('.port-status').textContent;
+                const service = port === 21 ? 'ftp' : port === 22 ? 'ssh' : port === 23 ? 'telnet' :
+                    port === 25 ? 'smtp' : port === 53 ? 'domain' : port === 80 ? 'http' :
+                    port === 443 ? 'https' : 'mysql';
+
+                let stateClass = 'terminal-output';
+                if (status.includes('open')) {
+                    results.open++;
+                    stateClass = 'terminal-success';
+                } else if (status.includes('closed')) {
+                    results.closed++;
+                    stateClass = 'terminal-error';
+                } else {
+                    results.filtered++;
+                    stateClass = 'terminal-warning';
+                }
+
+                addTerminalLine(`${String(port).padEnd(8)} ${status.padEnd(13)} ${service}`, stateClass);
+            });
+
+            addTerminalLine('');
+            addTerminalLine(`Nmap done: 1 IP address (1 host up) scanned in ${((Date.now() - startTime) / 1000).toFixed(2)} seconds`);
+
+            isScanning = false;
+            startBtn.disabled = false;
+        }
+
+        // Reset
+        function resetScan() {
+            isScanning = false;
+            startBtn.disabled = false;
+            packetNo = 0;
+
+            wiresharkBody.innerHTML = `
+                <tr>
+                    <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 20px;">
+                        Click "Start Scan" to begin packet capture...
+                    </td>
+                </tr>
+            `;
+
+            packetDetail.style.display = 'none';
+            resetPorts();
+
+            const scan = scanTypes[currentScan];
+            terminalBody.innerHTML = `
+                <div class="terminal-line">
+                    <span class="terminal-prompt">root@kali:~# </span>
+                    <span class="terminal-command">${scan.cmd} 192.168.1.50</span>
+                </div>
+            `;
+        }
+
+        // Event listeners
+        scanTypeButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (isScanning) return;
+                scanTypeButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentScan = btn.dataset.scan;
+                updateScanInfo(currentScan);
+                resetScan();
+            });
+        });
+
+        startBtn.addEventListener('click', startScan);
+        resetBtn.addEventListener('click', resetScan);
+
+        // Glow effect
+        document.querySelectorAll('.glow-card').forEach(card => {
+            card.addEventListener('mousemove', e => {
+                const rect = card.getBoundingClientRect();
+                const x = e.clientX - rect.left - rect.width / 2;
+                const y = e.clientY - rect.top - rect.height / 2;
+                const angle = Math.atan2(y, x) * 180 / Math.PI + 90;
+                card.style.setProperty('--glow-angle', `${angle}deg`);
+            });
+        });
+
+        // Initialize
+        updateScanInfo('syn');
+    </script>
+</body>
+</html>
